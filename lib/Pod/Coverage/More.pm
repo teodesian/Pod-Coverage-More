@@ -20,20 +20,34 @@ Pod::Coverage::More
 =head1 SYNOPSIS
 
 Extends Pod::Coverage to handle more things, like whether you are specifying args for your subroutines and whether that matches up with the subroutine's use of @_.
+
 Will also optionally check that you describe your arguments (name them sometime before the next sub is mentioned), and optionally check whether you list it's expected type(s).
+
 Also checks for a description of the return value(s) and it's expected type(s).
+
 Also checks for descriptions of the function possibly causing termination incidents (croak/die,etc).
+
+Also can check for examples in your POD.
+
 Also has a kwalitee checker to make sure you didn't forget things like SYNOPSIS, NAME, AUTHOR, COPYRIGHT etc.
 
 For multiple functions described on one line, you can separate them with commas or spaces.  But for arguments, you must use commas; wouldn't want to confuse the copypasters out there.
 
-=head1 METHODS
+You're still on your own with regard to mis-spellings in your POD; this isn't Pod::Coverage::Everything, you know.
+
+=head1 OVERRIDDEN METHODS
 
 =head2 coverage
 
 Should do the same thing as Pod::Coverage, but with a slightly more complex algorithm for getting arguments, et cetera.
-Used mostly for unit testing purposes (make sure the module is sane).
 Much like Pod::Coverage, it supports multiple functions being described per line.
+
+You should use this if you want to have the rest of the functions here work too, as it has a signifigant caveat.
+
+=head3 CAVEAT:
+
+item commands are parsed as arguments to subroutines, not as subroutine entries.  This makes strategy 1) in coverage_argument_types possible.
+It makes sense to me, given arguments are I<items> in I<lists>.
 
 =cut
 
@@ -84,6 +98,8 @@ sub coverage {
     return $documented / $symbols;
 }
 
+=head1 METHODS
+
 =head2 coverage_arguments
 
 Looks for arguments to your functions described.  In general, valid barewords or variable names inside of parens following a function name is expected.
@@ -91,7 +107,7 @@ Uses PadWalker's 'peek_sub' routine to check that the names are at least present
 Names are not case sensitive, and will attempt to obey declared sigils (see 1. in coverage_argument_types).
 
 TODO: use PPI to verify they are part of @_.
-Also, add compatibility for method signatures and so forth.
+Also, add compatibility for various method signatures and so forth.
 
 =cut
 
@@ -162,11 +178,29 @@ As usual, the type and varname search is case insensitive.
 
 Recognized types:
 
-SCALAR,SCALARREF,ARRAY,ARRAYREF,HASH,HASHREF,FUNCREF,TYPEGLOBREF,OBJECT
+SCALAR,SCALARREF,ARRAY,ARRAYREF,HASH,HASHREF,CODEREF,TYPEGLOBREF and OBJECT,STRING,INTEGER,FLOAT,BOOLEAN (the latter five and the REFs are aliases to SCALAR when comparing versus the type detected by PadWalker)
+
+You can also cheat and say MIXED to skip type checks.  Not the way I'd write a sub, but to each their own.
 
 These two strategies are mutually exclusive; having sigils declared for your argument (strategy 1) will obviate it's search in a following block (stragtegy 2).
 
-TODO: recognize types from Type::Tiny or other MOPs
+=head3 TODO:
+
+recognize types from Type::Tiny or other MOPs
+use PPI to enhance detection of args in vanilla perl (make sure they're really from @_).  This way order matters in the args.
+
+=head3 Mabye TODO:
+
+Recognize imported namespaces when named as being explicit statements of what type of OBJECT we want an arg to be under vanilla perl
+
+use PPI to do better inference on data type (using scalar as if HASHREF, etc...) for vanilla perl?
+
+Consider mainline prototypes and signatures, despite their general inferiority to CPAN alternatives?
+
+=head3 Probably Shouldn't TODO:
+
+Infer vanilla types from standard guard clauses (if they exist???) for OBJECT,STRING,INTEGER,FLOAT,BOOLEAN (isa,!looks_like_number,Regexp::Common trickery)
+Make the hammer of shame fall when said guard clauses are not detected
 
 =cut
 
@@ -220,6 +254,13 @@ sub coverage_argument_types {
 
 }
 
+=head2 coverage_return_types
+
+Uses PPI to find out the sort of data your function returns, and then looks for an adequate description in a textblock following function definition.
+Acceptable returntypes are same as accepted for coverage_argument_types.
+
+=cut
+
 sub coverage_return_types {
     my $self = shift;
 
@@ -227,6 +268,15 @@ sub coverage_return_types {
     my $podInfo = $self->_get_more_pods;
 
 }
+
+=head2 coverage_termination
+
+Uses PPI to find spots where your code explicitly croaks/dies/confesses or otherwises goes down in flames!
+Returns failure when you do not provide adequate warnings to the user foolish enough to attempt usage of said code.
+
+In general, say the code dies/exits/croaks/confesses on some condition in a text block following function definition and you should be good to go.
+
+=cut
 
 sub coverage_termination {
     my $self = shift;
@@ -236,11 +286,27 @@ sub coverage_termination {
 
 }
 
+=head2 coverage_examples
+
+Looks through the verbatim blocks following function definition(s) for examples of said functions' (correct) usage
+Basically runs the signature,type, returntype and termination coverage algorithms on said verbatim block.
+
+=cut
+
+sub coverage_examples {
+
+}
+
+=head2 coverage_kwalitee
+
+Calls the analyze routines in Module::CPANTS::Kwalitee::Pod to make sure you have some Kwalitee pod right there.
+
+=cut
+
 sub coverage_kwalitee {
     my $self = shift;
 
     my $package = $self->{package};
-    my $podInfo = $self->_get_more_pods;
 
 }
 
@@ -288,7 +354,11 @@ use constant debug => 0;
 sub command {
     my $self = shift;
     my ( $command, $text, $line_num ) = @_;
-    if ( $command eq 'item' || $command =~ /^head(?:2|3|4)/ ) {
+    if ( $command eq 'item') {
+        #TODO They are args, process...
+        return;
+    }
+    if ( $command =~ /^head(?:2|3|4)/ ) {
 
         # take a closer look
         my @pods = ( $text =~ /\s*([^\s\|,\/]+)/g );
