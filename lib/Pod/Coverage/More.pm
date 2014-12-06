@@ -1,5 +1,8 @@
 {
 
+# ABSTRACT: Make sure your POD covers more ground than just subroutines
+# PODNAME: Pod::Coverage::More
+
 package Pod::Coverage::More;
 
 use strict;
@@ -13,11 +16,7 @@ use Clone 'clone';
 
 use base 'Pod::Coverage';
 
-=head1 NAME
-
-Pod::Coverage::More
-
-=head1 SYNOPSIS
+=head1 DESCRIPTION
 
 Extends Pod::Coverage to handle more things, like whether you are specifying args for your subroutines and whether that matches up with the subroutine's use of @_.
 
@@ -29,11 +28,14 @@ Also checks for descriptions of the function possibly causing termination incide
 
 Also can check for examples in your POD.
 
-Also has a kwalitee checker to make sure you didn't forget things like SYNOPSIS, NAME, AUTHOR, COPYRIGHT etc.
-
 For multiple functions described on one line, you can separate them with commas or spaces.  But for arguments, you must use commas; wouldn't want to confuse the copypasters out there.
 
-You're still on your own with regard to mis-spellings in your POD; this isn't Pod::Coverage::Everything, you know.
+=head1 SYNOPSIS
+
+   my $pc    = Pod::Coverage::More->new(package => 'Quux');
+   my $acov  = $pc->coverage_arguments();
+   my $atcov = $pc->coverage_argument_types();
+
 
 =head1 OVERRIDDEN METHODS
 
@@ -42,7 +44,7 @@ You're still on your own with regard to mis-spellings in your POD; this isn't Po
 Should do the same thing as Pod::Coverage, but with a slightly more complex algorithm for getting arguments, et cetera.
 Much like Pod::Coverage, it supports multiple functions being described per line.
 
-You should use this if you want to have the rest of the functions here work too, as it has a signifigant caveat.
+You should use this if you want to have the rest of the functions here work too, as it has a significant caveat.
 
 =head3 CAVEAT:
 
@@ -174,7 +176,7 @@ This can be done one of two ways:
     =item B<ARG2> - HASHREF - does something not so weird
     ...
 
-As usual, the type and varname search is case insensitive.
+As usual, the type and variable name search is case insensitive.
 
 Recognized types:
 
@@ -182,14 +184,14 @@ SCALAR,SCALARREF,ARRAY,ARRAYREF,HASH,HASHREF,CODEREF,TYPEGLOBREF and OBJECT,STRI
 
 You can also cheat and say MIXED to skip type checks.  Not the way I'd write a sub, but to each their own.
 
-These two strategies are mutually exclusive; having sigils declared for your argument (strategy 1) will obviate it's search in a following block (stragtegy 2).
+These two strategies are mutually exclusive; having sigils declared for your argument (strategy 1) will obviate it's search in a following block (strategy 2).
 
 =head3 TODO:
 
 recognize types from Type::Tiny or other MOPs
 use PPI to enhance detection of args in vanilla perl (make sure they're really from @_).  This way order matters in the args.
 
-=head3 Mabye TODO:
+=head3 Maybe TODO:
 
 Recognize imported namespaces when named as being explicit statements of what type of OBJECT we want an arg to be under vanilla perl
 
@@ -256,8 +258,8 @@ sub coverage_argument_types {
 
 =head2 coverage_return_types
 
-Uses PPI to find out the sort of data your function returns, and then looks for an adequate description in a textblock following function definition.
-Acceptable returntypes are same as accepted for coverage_argument_types.
+Uses PPI to find out the sort of data your function returns, and then looks for an adequate description in a text block following function definition.
+Acceptable return types are same as accepted for coverage_argument_types.
 
 =cut
 
@@ -271,7 +273,7 @@ sub coverage_return_types {
 
 =head2 coverage_termination
 
-Uses PPI to find spots where your code explicitly croaks/dies/confesses or otherwises goes down in flames!
+Uses PPI to find spots where your code explicitly croaks/dies/confesses or otherwise goes down in flames!
 Returns failure when you do not provide adequate warnings to the user foolish enough to attempt usage of said code.
 
 In general, say the code dies/exits/croaks/confesses on some condition in a text block following function definition and you should be good to go.
@@ -289,24 +291,11 @@ sub coverage_termination {
 =head2 coverage_examples
 
 Looks through the verbatim blocks following function definition(s) for examples of said functions' (correct) usage
-Basically runs the signature,type, returntype and termination coverage algorithms on said verbatim block.
+Basically runs the signature,type, return type and termination coverage algorithms on said verbatim block.
 
 =cut
 
 sub coverage_examples {
-
-}
-
-=head2 coverage_kwalitee
-
-Calls the analyze routines in Module::CPANTS::Kwalitee::Pod to make sure you have some Kwalitee pod right there.
-
-=cut
-
-sub coverage_kwalitee {
-    my $self = shift;
-
-    my $package = $self->{package};
 
 }
 
@@ -427,12 +416,6 @@ sub textblock {
 
 __END__
 
-=head1 AUTHOR
+=head1 SEE ALSO
 
-George S. Baugh <teodesian@cpan.org>
-
-=head1 COPYRIGHT AND LICENSE
-
-This software is copyright (c) 2014 by George S. Baugh.
-
-This is free software; you can redistribute it and/or modify it under the same terms as the Perl 5 programming language system itself.
+L<Pod::Coverage>
