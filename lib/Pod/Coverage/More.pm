@@ -211,6 +211,7 @@ sub coverage_argument_types {
 
     my $package = $self->{package};
     my $podInfo = $self->_get_more_pods;
+
     my ($fun,$funargs,$peekedargs,$argsWithSigils,$failMsg);
 
     #Use PadWalker to get the declared locals in the function
@@ -237,8 +238,35 @@ sub coverage_argument_types {
             $peekedargs  = clone $subrow->{'sub_vars'}->{$funWithArgs};
 
             if (!scalar(@$argsWithSigils)) {
+                my @podargs = keys(%{$subrow->{'arglist'}});
                 #Then we need to look for it in the text blocks that were parsed for this function group.
-                $failMsg .= "Type resolution 1 not implemented for $funWithArgs.\n";
+                #$failMsg .= "Type resolution 1 not implemented for $funWithArgs.\n";
+                foreach my $funarg (@$funargs) {
+                    if (! grep { lc($_) eq lc($funarg)} @podargs) {
+                        $failMsg .= "Var $funarg not documented whatsoever for $funWithArgs!\n";
+                    }
+                }
+
+                #Check types against peeked arg sigils
+                my @podtypes = values(%{$subrow->{'arglist'}});
+                #@podtypes = map {} @podtypes;
+                my ($moreFunArg,$peekedType,$ptype);
+                foreach my $moreFunArg (@$peekedargs) {
+                    $peekedType = $moreFunArg;
+                    $moreFunArg =~ s/^[\$|\*|@|%|&]//g; #Remove sigil
+                    $peekedType =~ s/$moreFunArg$//g;
+                    $peekedType =~ s/\$/scalar/g;
+                    $peekedType =~ s/@/array/g;
+                    $peekedType =~ s/%/hash/g;
+                    foreach my $ptype (@podtypes) {
+                        if ($ptype ne $peekedType) {
+                            if ($peekedType eq 'scalar') {
+                                last if grep {$_ eq $ptype} qw{scalarref arrayref hashref coderef typeglobref object integer float boolean string};
+                            }
+                            $failMsg .= "Type mismatch for arg $moreFunArg of $funWithArgs: got $ptype, expected $peekedType\n";
+                        }
+                    }
+                }
                 next;
             } else {
                 #Should I make a different message if the sigil was omitted for lone args?
@@ -335,6 +363,7 @@ use strict;
 use warnings;
 
 use Pod::Parser;
+use Test::Deep::NoTest qw{eq_deeply};
 use base 'Pod::Parser';
 
 use constant debug => 0;
@@ -345,6 +374,38 @@ sub command {
     my ( $command, $text, $line_num ) = @_;
     if ( $command eq 'item') {
         #TODO They are args, process...
+        my @types = qw{SCALAR SCALARREF ARRAY ARRAYREF HASH HASHREF CODEREF TYPEGLOBREF OBJECT STRING INTEGER FLOAT BOOLEAN MIXED};
+        my $argTypeList = {};
+
+        #TODO: Be a bit safer here...
+        my @argIndices = keys(%{$self->{'current_function_map'}->{'args'}});
+        return if !defined $argIndices[0];
+        my @args = @{ $self->{'current_function_map'}->{'args'}->{$argIndices[0]} };
+        foreach my $arg (@args) {
+            $arg = lc($arg);
+            if ( lc($text) =~ /$arg/g ) {
+                #Check if it has a type declared
+                $argTypeList->{$arg} = '';
+                foreach my $type (@types) {
+                    $type = lc($type);
+                    if (lc($text) =~ /$type/g) {
+                        $argTypeList->{$arg} = $type;
+                        last;
+                    }
+                }
+                last;
+            }
+        }
+
+        #Parse text, get types
+        foreach my $frow (@{$self->{'function_maps'}}) {
+            #XXX Not particularly optimized, but do you really care for POD tests?
+            if (eq_deeply($frow,$self->{'current_function_map'})) {
+                $frow->{'arglist'} = {} if !exists($frow->{'arglist'});
+                @{$frow->{'arglist'}}{keys($argTypeList)} = values($argTypeList);
+                last;
+            }
+        }
         return;
     }
     if ( $command =~ /^head(?:2|3|4)/ ) {
