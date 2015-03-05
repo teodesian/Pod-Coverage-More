@@ -7,6 +7,8 @@ use Test::Pod 'tests' => 14;
 use Test::Pod::Coverage;
 use Pod::Coverage::More;
 
+#TODO findbin to get into t/
+
 use Quux;
 use Xenu;
 
