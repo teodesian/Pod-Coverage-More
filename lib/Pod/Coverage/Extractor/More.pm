@@ -1,3 +1,5 @@
+# ABSTRACT: Utility library for Pod::Coverage::More
+# PODNAME: Pod::Coverage::Extractor::More
 package Pod::Coverage::Extractor::More;
 
 use strict;
@@ -8,6 +10,12 @@ use Test::Deep::NoTest qw{eq_deeply};
 use base 'Pod::Parser';
 
 use constant debug => 0;
+
+=head1 DESCRIPTION
+
+Routines to extract subroutine names, arguments and their types (among other things) from a pod stream.
+
+=cut
 
 # extract subnames from a pod stream
 sub command {
