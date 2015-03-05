@@ -1,13 +1,14 @@
 use strict;
 use warnings;
 
+use FindBin;
+use lib "$FindBin::Bin";
+
 use Scalar::Util qw{reftype};
 use Test::More;
 use Test::Pod 'tests' => 14;
 use Test::Pod::Coverage;
 use Pod::Coverage::More;
-
-#TODO findbin to get into t/
 
 use Quux;
 use Xenu;

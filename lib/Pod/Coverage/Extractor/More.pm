@@ -7,7 +7,7 @@ use Pod::Parser;
 use Test::Deep::NoTest qw{eq_deeply};
 use base 'Pod::Parser';
 
-use constant debug => 1;
+use constant debug => 0;
 
 # extract subnames from a pod stream
 sub command {
