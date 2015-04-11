@@ -129,7 +129,7 @@ sub coverage_arguments {
             #    warn "No such function $package::$function";
             #    next;
             #}
-            $funargs = $self->_sub_info($function);
+            $funargs = $self->_sub_args($function);
             $subrow->{'sub_vars'} = {} if !exists($subrow->{'sub_vars'});
             $subrow->{'sub_vars'}->{$function} = clone $funargs;
         }
@@ -223,7 +223,7 @@ sub coverage_argument_types {
             #    warn "No such function $package::$function";
             #    next;
             #}
-            $funargs = $self->_sub_info($function);
+            $funargs = $self->_sub_args($function);
             $subrow->{'sub_vars'} = {} if !exists($subrow->{'sub_vars'});
             $subrow->{'sub_vars'}->{$function} = clone $funargs;
         }
@@ -296,7 +296,7 @@ sub coverage_return_types {
 
     my $package = $self->{package};
     my $podInfo = $self->_get_more_pods;
-    $self->_extract_function_information;
+    return $self->_extract_function_information;
     return 'stub';
 }
 
@@ -374,6 +374,7 @@ sub _extract_function_information {
         for (my $j=1; $j < scalar(@$subwords); $j++ ) {
             $subname = $subwords->[$j]->content if $subwords->[$j - 1]->content eq 'sub';
         }
+        $subdefs->{$subname} = {};
 
         #Ok, so we need a subroutine line with either symbols -> assignment -> (magic (@_) || word (shift))
         $subvars = $sub->find('PPI::Statement::Variable') || [];
@@ -411,17 +412,30 @@ sub _extract_function_information {
                 }
 
             }
-            $subdefs->{$subname} = $input_variables if scalar(@assignats);
+            $subdefs->{$subname}->{'args'} = $input_variables if scalar(@assignats);
             #note join(',',@$input_variables)." = ".join(',',@assignats) if scalar(@assignats);
         }
 
+
+        #Now, to figure out what sort of things these functions are returning.
+        use Test::More;
+        diag explain $subs if $subname eq 'ret5';
+
+        # The task is threefold.
+        # First, break the sub down into conditional blocks, so we can figure out whether the type is MIXED.
+        # Next, search for PPI::Statement::Breaks containing PPI::Token::Words with content 'return'.
+        # Finally, look for fall-through (PPI::Statement::Variable) returns at the end of subs.
+        # Then stuff what we 'think' the return type is into $self->{'sub_parse'}->{$subname}->{'returns'} arrayref.
+
     }
+
+
     return $self->{'sub_parse'} = $subdefs;
 }
 
-sub _sub_info {
+sub _sub_args {
     my ($self,$sub) = @_;
-    return $self->{'sub_parse'}->{$sub};
+    return $self->{'sub_parse'}->{$sub}->{'args'};
 }
 
 1;

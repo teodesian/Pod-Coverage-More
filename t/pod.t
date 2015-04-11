@@ -12,6 +12,7 @@ use Pod::Coverage::More;
 
 use Quux;
 use Xenu;
+use Ret;
 
 #Make sure parent is still sane
 my @pobjfiles = map { $INC{$_} } ('Quux.pm');
@@ -46,3 +47,7 @@ is(reftype($res),'HASH',"Coverage arguments types returns hashref");
 ok($res->{'status'},"Got correct arg type coverage for test module Quux");
 is($res->{'message'}, undef, "No message provided when everything is OK");
 
+note "Verify return type coverage is adequate";
+$pc = Pod::Coverage::More->new(package => 'Ret');
+$res = $pc->coverage_return_types();
+diag explain $res;
