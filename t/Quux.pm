@@ -134,10 +134,11 @@ sub wsSep2{
     my ($whee,$zap,$tickle) = @_;
 }
 sub wsSep3{
-    my $poo = $_;
+    my $poo = shift;
 }
 sub wsSep4{
     my ($goo,$quux) = @_;
+    my $horgle;
 }
 sub wsSep5{}
 

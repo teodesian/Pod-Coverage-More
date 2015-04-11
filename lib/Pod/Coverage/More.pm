@@ -9,7 +9,7 @@ use warnings;
 use constant TRACE_ALL => 0;
 
 use Pod::Find qw(pod_where);
-use PadWalker qw(peek_sub);
+use PPI;
 use Clone 'clone';
 
 use base 'Pod::Coverage';
@@ -118,18 +118,19 @@ sub coverage_arguments {
 
     my $package = $self->{package};
     my $podInfo = $self->_get_more_pods;
+    $self->_extract_function_information;
     my ($fun,$funargs,$peekedargs,$failMsg);
 
     #Use PadWalker to get the declared locals in the function
     foreach my $subrow (@{$podInfo->{'function_maps'}}) {
         #Process each function, be they having args or not
         foreach my $function (@{$subrow->{'all'}}) {
-            eval "\$fun = \\&$package\:\:$function";
-            if ($@) {
-                warn "No such function $package::$function";
-                next;
-            }
-            @$funargs = keys(%{peek_sub($fun)});
+            #eval "\$fun = \\&$package\:\:$function";
+            #if ($@) {
+            #    warn "No such function $package::$function";
+            #    next;
+            #}
+            $funargs = $self->_sub_info($function);
             $subrow->{'sub_vars'} = {} if !exists($subrow->{'sub_vars'});
             $subrow->{'sub_vars'}->{$function} = clone $funargs;
         }
@@ -211,18 +212,19 @@ sub coverage_argument_types {
 
     my $package = $self->{package};
     my $podInfo = $self->_get_more_pods;
+    $self->_extract_function_information;
     my ($fun,$funargs,$peekedargs,$argsWithSigils,$failMsg);
 
     #Use PadWalker to get the declared locals in the function
     foreach my $subrow (@{$podInfo->{'function_maps'}}) {
         #Process each function, be they having args or not
         foreach my $function (@{$subrow->{'all'}}) {
-            eval "\$fun = \\&$package\:\:$function";
-            if ($@) {
-                warn "No such function $package::$function";
-                next;
-            }
-            @$funargs = keys(%{peek_sub($fun)});
+            #eval "\$fun = \\&$package\:\:$function";
+            #if ($@) {
+            #    warn "No such function $package::$function";
+            #    next;
+            #}
+            $funargs = $self->_sub_info($function);
             $subrow->{'sub_vars'} = {} if !exists($subrow->{'sub_vars'});
             $subrow->{'sub_vars'}->{$function} = clone $funargs;
         }
@@ -295,6 +297,7 @@ sub coverage_return_types {
 
     my $package = $self->{package};
     my $podInfo = $self->_get_more_pods;
+    $self->_extract_function_information;
     return 'stub';
 }
 
@@ -349,6 +352,76 @@ sub _get_more_pods {
 
     $self->{'last_pod'} = $pod;
     return $pod || {};
+}
+
+sub _extract_function_information {
+    my $self = shift;
+    my $file = $self->{'package'};
+    $file =~ s/::/\//g;
+    $file .= '.pm';
+    $file = $INC{$file};
+
+    my $Document = PPI::Document->new($file);
+
+    my $subs = $Document->find('PPI::Statement::Sub');
+
+    my ($subvars,$subwords,$subname);
+    my ($input_variables,$assignment,@assignats,@kiddos);
+
+    my $subdefs = {};
+
+    foreach my $sub (@$subs) {
+        $subwords = $sub->find('PPI::Token::Word') || [];
+        for (my $j=1; $j < scalar(@$subwords); $j++ ) {
+            $subname = $subwords->[$j]->content if $subwords->[$j - 1]->content eq 'sub';
+        }
+
+        #Ok, so we need a subroutine line with either symbols -> assignment -> (magic (@_) || word (shift))
+        $subvars = $sub->find('PPI::Statement::Variable') || [];
+        foreach my $var (@$subvars) {
+            #diag explain $var;
+            $assignment = 0;
+            $input_variables = [];
+            @assignats = ();
+            @kiddos = $var->children;
+            #Flatten any list assignment into the child array
+            for (my $i=0; $i < scalar(@kiddos); $i++) {
+                #Replace element at it's index with it's children if it has any
+                if ($kiddos[$i]->isa('PPI::Node') ) {
+                    splice(@kiddos,$i,1,$kiddos[$i]->children);
+                    $i--;
+                }
+            }
+
+            foreach my $tok (@kiddos) {
+                #diag explain $tok;
+                #Figure out which side of assignment we are on
+                if ($tok->isa('PPI::Token::Operator') && $tok->content eq '=') {
+                    $assignment = 1;
+                    next;
+                }
+                #note blessed($tok);
+
+                #Figure out what we're assigning to, or from.
+                if ($assignment) {
+                    push(@assignats,$tok->content) if $tok->isa('PPI::Token::Symbol') || ($tok->isa('PPI::Token::Word') && $tok->content eq 'shift') ;
+                } else {
+                    #diag explain $tok;
+                    push(@$input_variables,$tok->content) if $tok->isa('PPI::Token::Symbol');
+                }
+
+            }
+            $subdefs->{$subname} = $input_variables if scalar(@assignats);
+            #note join(',',@$input_variables)." = ".join(',',@assignats) if scalar(@assignats);
+        }
+
+    }
+    return $self->{'sub_parse'} = $subdefs;
+}
+
+sub _sub_info {
+    my ($self,$sub) = @_;
+    return $self->{'sub_parse'}->{$sub};
 }
 
 1;
