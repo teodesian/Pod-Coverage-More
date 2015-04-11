@@ -105,11 +105,10 @@ sub coverage {
 =head2 coverage_arguments
 
 Looks for arguments to your functions described.  In general, valid barewords or variable names inside of parens following a function name is expected.
-Uses PadWalker's 'peek_sub' routine to check that the names are at least present as declared vars in your subroutine.
+Uses PPI to check that the names are at least present as declared vars in your subroutine, and that they seem to be assignments of @_ or a bare shift.
 Names are not case sensitive, and will attempt to obey declared sigils (see 1. in coverage_argument_types).
 
-TODO: use PPI to verify they are part of @_.
-Also, add compatibility for various method signatures and so forth.
+TODO add compatibility for various method signatures and so forth.
 
 =cut
 
@@ -404,6 +403,7 @@ sub _extract_function_information {
 
                 #Figure out what we're assigning to, or from.
                 if ($assignment) {
+                    #TODO make sure this is a bare shift
                     push(@assignats,$tok->content) if $tok->isa('PPI::Token::Symbol') || ($tok->isa('PPI::Token::Word') && $tok->content eq 'shift') ;
                 } else {
                     #diag explain $tok;
