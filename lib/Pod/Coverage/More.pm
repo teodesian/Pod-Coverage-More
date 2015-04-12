@@ -415,7 +415,7 @@ sub _extract_function_information {
         print "#############\n";
         #Now, to figure out what sort of things these functions are returning.
         my $breaks = $sub->find('PPI::Statement::Break'); #break it up, break it up, break it up...
-        push(@{$subdefs->{$subname}->{'returns'}},map {extract_returntypes($_)} @$breaks) if $breaks;
+        push(@{$subdefs->{$subname}->{'returns'}},map {$self->extract_returntypes($_)} @$breaks) if $breaks;
 
         # The task is threefold.
         # First, break the sub down into conditional blocks, so we can figure out whether the type is MIXED.
@@ -443,7 +443,7 @@ sub _extract_function_information {
             }
             @kiddos = ();
         }
-        push(@{$subdefs->{$subname}->{'returns'}},extract_returntypes($last_line)) if blessed($last_line) ne 'PPI::Statement::Break';
+        push(@{$subdefs->{$subname}->{'returns'}},$self->extract_returntypes($last_line)) if blessed($last_line) ne 'PPI::Statement::Break';
     }
 
 
@@ -452,14 +452,14 @@ sub _extract_function_information {
 
 #TODO Extract return types from VARIABLE or BREAK statements, and return them.
 sub extract_returntypes {
-    my $smt = shift;
+    my ($self,$smt) = @_;
     use Test::More;
 
     #Filter out irrelevancies
     my @sigs = grep {
         my $subject = $_;
         $subject->significant &&
-        !grep {$subject->content eq $_ }  (';','return','my','our','local',':')
+        !grep {$subject->content eq $_ }  (';','return','my','our','local',':',',')
     } $smt->children;
 
     #Strip postfix ifs
@@ -476,31 +476,71 @@ sub extract_returntypes {
             last;
         }
     }
-
     #Get the HASH and ARRAY refs
-    if (scalar(@sigs) == 1) {
-        my $class = blessed($sigs[0]);
+    for (my $i = 0; $i < scalar(@sigs); $i++) {
+        my $class = blessed($sigs[$i]);
+        #if (!$sigs[$i]->significant || grep {$sigs[$i]->content eq $_ }  (';','return','my','our','local',':',',')) {
+        #    splice(@sigs,$i,1);
+        #    $i--;
         if ($class eq 'PPI::Structure::Constructor') {
-            if ($sigs[0]->start eq '{') {
-                $sigs[0] = 'HASHREF';
+            if ($sigs[$i]->start eq '{') {
+                $sigs[$i] = 'HASHREF';
             } else {
-                $sigs[0] = 'ARRAYREF';
+                $sigs[$i] = 'ARRAYREF';
             }
-        } elsif ($sigs[0]->isa( 'PPI::Token' ) ) {
-            $sigs[0] = $sigs[0]->content;
-            $sigs[0] =~ s/^'|'$//g if $class eq 'PPI::Token::Quote::Single';
-            $sigs[0] =~ s/^"|"$//g if $class eq 'PPI::Token::Quote::Double';
-            #TODO extra processing if blessed($sigs[0]) eq 'PPI::Token::Symbol'
-        } elsif (blessed($sigs[0]) eq 'PPI::Structure::List') {
+        } elsif ($sigs[$i]->isa( 'PPI::Token' ) ) {
+            $sigs[$i] = $sigs[$i]->content;
+            $sigs[$i] =~ s/^'|'$//g if $class eq 'PPI::Token::Quote::Single';
+            $sigs[$i] =~ s/^"|"$//g if $class eq 'PPI::Token::Quote::Double';
+            #TODO extra processing if blessed($sigs[$i]) eq 'PPI::Token::Symbol'
+
+            # There is a chance this is an argument list.
+            # If so grab the class SUPPOSING it's a bless().
+            if ( ( ($i - 1) != -1 ) && ( $sigs[$i - 1] eq 'bless' ) ) {
+                if ( ($i + 1) < scalar(@sigs) ) {
+                    # Then this is a 2 arg bless.
+                    $sigs[$i+1] =~ s/^'|'$//g if $class eq 'PPI::Token::Quote::Single';
+                    $sigs[$i+1] =~ s/^"|"$//g if $class eq 'PPI::Token::Quote::Double';
+                    splice(@sigs,$i - 1, 3, 'CLASS '.$sigs[$i+1]);
+                } else {
+                    # One-arg bless
+                    splice(@sigs,$i - 1, 2, 'CLASS '.$self->{'package'});
+                }
+                $i--;
+            } elsif ((($i+1) < scalar(@sigs)) && ($sigs[$i+1]->content eq '=')) {
+                # Handle assignment returns
+                splice(@sigs,$i,3,$sigs[$i+2]);
+                $i--;
+            }
+
+        } elsif (blessed($sigs[$i]) eq 'PPI::Structure::List') {
             #Flatten all the way baybeeee
-            my @koolkids = $sigs[0]->children;
+            my @koolkids = $sigs[$i]->children;
             foreach my $kid (@koolkids) {
                 push(@koolkids,$kid->children) if $kid->can('children');
             }
             if (grep {$_->content eq '=>'} @koolkids) {
-                $sigs[0] = 'HASH';
+                $sigs[$i] = 'HASH';
             } else {
-                $sigs[0] = 'ARRAY';
+                # Ok, this is where it gets a bit interesting.
+                # First, reduce 1 element array returns.
+                # While this is technically correct, it is not what people normally expect.
+                if (scalar($sigs[$i]->children) == 1 && $sigs[$i-1] eq 'bless') {
+                    my @kids = $sigs[$i]->children;
+                    if (scalar(@kids) == 1 && blessed($kids[0]) eq 'PPI::Statement::Expression') {
+                        @kids = grep {
+                            my $subject = $_;
+                            $subject->significant &&
+                            !grep {$subject->content eq $_ }  (';','return','my','our','local',':',',')
+                        } $kids[0]->children;
+                        splice(@sigs,$i,1,@kids);
+                    } else {
+                        splice(@sigs,$i,1,$sigs[$i]->children);
+                    }
+                    $i--;
+                } else {
+                    $sigs[$i] = 'ARRAY';
+                }
             }
         }
     }
