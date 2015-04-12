@@ -11,6 +11,7 @@ use constant TRACE_ALL => 0;
 use Pod::Find qw(pod_where);
 use PPI;
 use Clone 'clone';
+use Scalar::Util qw{blessed};
 
 use base 'Pod::Coverage';
 
@@ -124,11 +125,6 @@ sub coverage_arguments {
     foreach my $subrow (@{$podInfo->{'function_maps'}}) {
         #Process each function, be they having args or not
         foreach my $function (@{$subrow->{'all'}}) {
-            #eval "\$fun = \\&$package\:\:$function";
-            #if ($@) {
-            #    warn "No such function $package::$function";
-            #    next;
-            #}
             $funargs = $self->_sub_args($function);
             $subrow->{'sub_vars'} = {} if !exists($subrow->{'sub_vars'});
             $subrow->{'sub_vars'}->{$function} = clone $funargs;
@@ -196,6 +192,7 @@ use PPI to enhance detection of args in vanilla perl (make sure they're really f
 Recognize imported namespaces when named as being explicit statements of what type of OBJECT we want an arg to be under vanilla perl
 
 use PPI to do better inference on data type (using scalar as if HASHREF, etc...) for vanilla perl?
+Look into using Perl::Critic::Utils for some of this.
 
 Consider mainline prototypes and signatures, despite their general inferiority to CPAN alternatives?
 
@@ -218,11 +215,6 @@ sub coverage_argument_types {
     foreach my $subrow (@{$podInfo->{'function_maps'}}) {
         #Process each function, be they having args or not
         foreach my $function (@{$subrow->{'all'}}) {
-            #eval "\$fun = \\&$package\:\:$function";
-            #if ($@) {
-            #    warn "No such function $package::$function";
-            #    next;
-            #}
             $funargs = $self->_sub_args($function);
             $subrow->{'sub_vars'} = {} if !exists($subrow->{'sub_vars'});
             $subrow->{'sub_vars'}->{$function} = clone $funargs;
@@ -375,6 +367,8 @@ sub _extract_function_information {
             $subname = $subwords->[$j]->content if $subwords->[$j - 1]->content eq 'sub';
         }
         $subdefs->{$subname} = {};
+        $subdefs->{$subname}->{'args'} = [];
+        $subdefs->{$subname}->{'returns'} = [];
 
         #Ok, so we need a subroutine line with either symbols -> assignment -> (magic (@_) || word (shift))
         $subvars = $sub->find('PPI::Statement::Variable') || [];
@@ -416,10 +410,12 @@ sub _extract_function_information {
             #note join(',',@$input_variables)." = ".join(',',@assignats) if scalar(@assignats);
         }
 
-
+        print "#############\n";
+        print "# $subname\n";
+        print "#############\n";
         #Now, to figure out what sort of things these functions are returning.
-        use Test::More;
-        diag explain $subs if $subname eq 'ret5';
+        my $breaks = $sub->find('PPI::Statement::Break'); #break it up, break it up, break it up...
+        push(@{$subdefs->{$subname}->{'returns'}},map {extract_returntypes($_)} @$breaks) if $breaks;
 
         # The task is threefold.
         # First, break the sub down into conditional blocks, so we can figure out whether the type is MIXED.
@@ -427,15 +423,105 @@ sub _extract_function_information {
         # Finally, look for fall-through (PPI::Statement::Variable) returns at the end of subs.
         # Then stuff what we 'think' the return type is into $self->{'sub_parse'}->{$subname}->{'returns'} arrayref.
 
+        #Or, get all the breaks and fall-throughs, and jump up through the parents of the breaks to see if conditional.
+
+        #Check if this has a fall-through (dangling) return.
+        my $dangler = undef;
+        @kiddos = $sub->children;
+        my $last_line = $kiddos[-1];
+        while (scalar(@kiddos)) {
+            if ($last_line->can('children')) {
+                @kiddos = $last_line->children;
+                @kiddos = grep {$_->significant} @kiddos;
+                #note blessed($last_line);
+                #diag explain \@kiddos;
+                if (scalar(@kiddos) && $kiddos[-1]->can('children') ) {
+                    $last_line = $kiddos[-1];
+                    $last_line->{'is_dangling'} = 1;
+                    next;
+                }
+            }
+            @kiddos = ();
+        }
+        push(@{$subdefs->{$subname}->{'returns'}},extract_returntypes($last_line)) if blessed($last_line) ne 'PPI::Statement::Break';
     }
 
 
     return $self->{'sub_parse'} = $subdefs;
 }
 
+#TODO Extract return types from VARIABLE or BREAK statements, and return them.
+sub extract_returntypes {
+    my $smt = shift;
+    use Test::More;
+
+    #Filter out irrelevancies
+    my @sigs = grep {
+        my $subject = $_;
+        $subject->significant &&
+        !grep {$subject->content eq $_ }  (';','return','my','our','local',':')
+    } $smt->children;
+
+    #Strip postfix ifs
+    for (my $i = 0; $i < scalar(@sigs); $i++) {
+        if ( grep { $sigs[$i]->content eq $_ } ('if','unless')) {
+            splice(@sigs,$i,scalar(@sigs) - $i);
+            last;
+        }
+    }
+    #Handle ternaries
+    for (my $i = 0; $i < scalar(@sigs); $i++) {
+        if ( grep { $sigs[$i]->content eq $_ } ('?')) {
+            splice(@sigs,0,$i + 1);
+            last;
+        }
+    }
+
+    #Get the HASH and ARRAY refs
+    if (scalar(@sigs) == 1) {
+        my $class = blessed($sigs[0]);
+        if ($class eq 'PPI::Structure::Constructor') {
+            if ($sigs[0]->start eq '{') {
+                $sigs[0] = 'HASHREF';
+            } else {
+                $sigs[0] = 'ARRAYREF';
+            }
+        } elsif ($sigs[0]->isa( 'PPI::Token' ) ) {
+            $sigs[0] = $sigs[0]->content;
+            $sigs[0] =~ s/^'|'$//g if $class eq 'PPI::Token::Quote::Single';
+            $sigs[0] =~ s/^"|"$//g if $class eq 'PPI::Token::Quote::Double';
+            #TODO extra processing if blessed($sigs[0]) eq 'PPI::Token::Symbol'
+        } elsif (blessed($sigs[0]) eq 'PPI::Structure::List') {
+            #Flatten all the way baybeeee
+            my @koolkids = $sigs[0]->children;
+            foreach my $kid (@koolkids) {
+                push(@koolkids,$kid->children) if $kid->can('children');
+            }
+            if (grep {$_->content eq '=>'} @koolkids) {
+                $sigs[0] = 'HASH';
+            } else {
+                $sigs[0] = 'ARRAY';
+            }
+        }
+    }
+
+    #Ok, if what is left happens to be bless followed by stuffs, let's reduce to class name.
+
+    push (@sigs,'undef') if !scalar(@sigs);
+
+    diag explain \@sigs;
+    return @sigs;
+}
+
+#Convenience methods to grab bits from the relevant hash
 sub _sub_args {
     my ($self,$sub) = @_;
     return $self->{'sub_parse'}->{$sub}->{'args'};
+}
+
+sub _return_types {
+    my ($self,$sub) = @_;
+    return $self->{'sub_parse'}->{$sub}->{'returns'};
 }
 
 1;

@@ -70,6 +70,16 @@ sub ret13 {
     }
 }
 
+sub ret14 {
+    return 'whee' if 1;
+    return "zop";
+}
+
+sub ret15 {
+    return 'eee' unless 1;
+    return 0 ? 'nny' : 'wnnh';
+}
+
 #TODO other useless BS like switch statements, etc
 
 1;
