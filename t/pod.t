@@ -50,4 +50,4 @@ is($res->{'message'}, undef, "No message provided when everything is OK");
 note "Verify return type coverage is adequate";
 $pc = Pod::Coverage::More->new(package => 'Ret');
 $res = $pc->coverage_return_types();
-#diag explain $res;
+diag explain $res;

@@ -373,7 +373,6 @@ sub _extract_function_information {
         #Ok, so we need a subroutine line with either symbols -> assignment -> (magic (@_) || word (shift))
         $subvars = $sub->find('PPI::Statement::Variable') || [];
         foreach my $var (@$subvars) {
-            #diag explain $var;
             $assignment = 0;
             $input_variables = [];
             @assignats = ();
@@ -388,31 +387,24 @@ sub _extract_function_information {
             }
 
             foreach my $tok (@kiddos) {
-                #diag explain $tok;
                 #Figure out which side of assignment we are on
                 if ($tok->isa('PPI::Token::Operator') && $tok->content eq '=') {
                     $assignment = 1;
                     next;
                 }
-                #note blessed($tok);
 
                 #Figure out what we're assigning to, or from.
                 if ($assignment) {
                     #TODO make sure this is a bare shift
                     push(@assignats,$tok->content) if $tok->isa('PPI::Token::Symbol') || ($tok->isa('PPI::Token::Word') && $tok->content eq 'shift') ;
                 } else {
-                    #diag explain $tok;
                     push(@$input_variables,$tok->content) if $tok->isa('PPI::Token::Symbol');
                 }
 
             }
             $subdefs->{$subname}->{'args'} = $input_variables if scalar(@assignats);
-            #note join(',',@$input_variables)." = ".join(',',@assignats) if scalar(@assignats);
         }
 
-        print "#############\n";
-        print "# $subname\n";
-        print "#############\n";
         #Now, to figure out what sort of things these functions are returning.
         my $breaks = $sub->find('PPI::Statement::Break'); #break it up, break it up, break it up...
         push(@{$subdefs->{$subname}->{'returns'}},map {$self->extract_returntypes($_)} @$breaks) if $breaks;
@@ -433,8 +425,6 @@ sub _extract_function_information {
             if ($last_line->can('children')) {
                 @kiddos = $last_line->children;
                 @kiddos = grep {$_->significant} @kiddos;
-                #note blessed($last_line);
-                #diag explain \@kiddos;
                 if (scalar(@kiddos) && $kiddos[-1]->can('children') ) {
                     $last_line = $kiddos[-1];
                     $last_line->{'is_dangling'} = 1;
@@ -453,7 +443,6 @@ sub _extract_function_information {
 #TODO Extract return types from VARIABLE or BREAK statements, and return them.
 sub extract_returntypes {
     my ($self,$smt) = @_;
-    use Test::More;
 
     #Filter out irrelevancies
     my @sigs = grep {
@@ -479,9 +468,6 @@ sub extract_returntypes {
     #Get the HASH and ARRAY refs
     for (my $i = 0; $i < scalar(@sigs); $i++) {
         my $class = blessed($sigs[$i]);
-        #if (!$sigs[$i]->significant || grep {$sigs[$i]->content eq $_ }  (';','return','my','our','local',':',',')) {
-        #    splice(@sigs,$i,1);
-        #    $i--;
         if ($class eq 'PPI::Structure::Constructor') {
             if ($sigs[$i]->start eq '{') {
                 $sigs[$i] = 'HASHREF';
@@ -549,7 +535,6 @@ sub extract_returntypes {
 
     push (@sigs,'undef') if !scalar(@sigs);
 
-    diag explain \@sigs;
     return @sigs;
 }
 
