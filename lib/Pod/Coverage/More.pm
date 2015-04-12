@@ -11,7 +11,7 @@ use constant TRACE_ALL => 0;
 use Pod::Find qw(pod_where);
 use PPI;
 use Clone 'clone';
-use Scalar::Util qw{blessed};
+use Scalar::Util qw{blessed reftype};
 
 use base 'Pod::Coverage';
 
@@ -290,7 +290,17 @@ sub coverage_return_types {
     my $podInfo = $self->_get_more_pods;
     $self->_extract_function_information;
     use Test::More;
-    diag explain $podInfo;
+
+    return 0 if (reftype($podInfo->{'function_maps'}) || 'undef') ne "ARRAY";
+    foreach my $fundef (@{$podInfo->{'function_maps'}}) {
+        my $freturn = $fundef->{'returns'};
+        foreach my $fun (@{$fundef->{'all'}}) {
+            my $returns_ex = $self->_return_types($fun);
+            note $fun." :";
+            note $freturn;
+            diag explain $returns_ex;
+        }
+    }
     return $self->{'sub_parse'}
 }
 

@@ -114,7 +114,17 @@ sub command {
 sub textblock {
     my $self = shift;
     my ( $text, $line_num ) = shift;
+    my $is_class = '';
     if ( $text =~ /\S/) {
+        if ($text =~ m/return/i) {
+            $text =~ s/return.//gi;
+            $text =~ s/(object|instance|class|new)//gi;
+            $is_class = "CLASS " if defined($1);
+            $text =~ s/\s//gi;
+            $self->{'current_function_map'}->{'returns'} = $is_class.$text;
+        } elsif ($text =~ m/die|terminate|croak|confess|exit/i) {
+            $self->{'current_function_map'}->{'terms'} = $text;
+        }
         #print $text;
     }
     return 1;
