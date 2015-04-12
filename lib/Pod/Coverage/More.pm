@@ -288,8 +288,10 @@ sub coverage_return_types {
 
     my $package = $self->{package};
     my $podInfo = $self->_get_more_pods;
-    return $self->_extract_function_information;
-    return 'stub';
+    $self->_extract_function_information;
+    use Test::More;
+    diag explain $podInfo;
+    return $self->{'sub_parse'}
 }
 
 =head2 coverage_termination
