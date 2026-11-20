@@ -210,6 +210,8 @@ sub coverage_argument_types {
     my $podInfo = $self->_get_more_pods;
     $self->_extract_function_information;
     my ($fun,$funargs,$peekedargs,$argsWithSigils,$failMsg);
+    my %sigilTypes    = ( '$' => 'scalar', '@' => 'array', '%' => 'hash' );
+    my %scalarAliases = map { $_ => 1 } qw{scalarref arrayref hashref coderef typeglobref object integer float boolean string};
 
     #Use PadWalker to get the declared locals in the function
     foreach my $subrow (@{$podInfo->{'function_maps'}}) {
@@ -239,25 +241,18 @@ sub coverage_argument_types {
                     }
                 }
 
-                #Check types against peeked arg sigils
-                my @podtypes = values(%{$subrow->{'arglist'}});
-                #@podtypes = map {} @podtypes;
-                my ($moreFunArg,$peekedType,$ptype);
-                foreach my $moreFunArg (@$peekedargs) {
-                    $peekedType = $moreFunArg;
-                    $moreFunArg =~ s/^[\$|\*|@|%|&]//g; #Remove sigil
-                    $peekedType =~ s/$moreFunArg$//g;
-                    $peekedType =~ s/\$/scalar/g;
-                    $peekedType =~ s/@/array/g;
-                    $peekedType =~ s/%/hash/g;
-                    foreach my $ptype (@podtypes) {
-                        if ($ptype ne $peekedType) {
-                            if ($peekedType eq 'scalar') {
-                                last if grep {$_ eq $ptype} qw{scalarref arrayref hashref coderef typeglobref object integer float boolean string};
-                            }
-                            $failMsg .= "Type mismatch for arg $moreFunArg of $funWithArgs: got $ptype, expected $peekedType\n";
-                        }
-                    }
+                #Check each peeked arg's sigil against the type documented for that arg
+                foreach my $peekedArg (@$peekedargs) {
+                    my ($sigil, $argName) = $peekedArg =~ m/^(.)(.+)$/;
+                    my $peekedType = $sigilTypes{$sigil};
+                    my $podType    = $subrow->{'arglist'}->{lc($argName)};
+                    #An arg with no =item has no documented type to compare
+                    next if !defined $peekedType || !defined $podType;
+                    next if $podType eq 'mixed' || $podType eq $peekedType;
+                    next if $peekedType eq 'scalar' && $scalarAliases{$podType};
+                    $failMsg .= $podType eq ''
+                        ? "No type declared for arg $argName of $funWithArgs\n"
+                        : "Type mismatch for arg $argName of $funWithArgs: got $podType, expected $peekedType\n";
                 }
                 next;
             } else {

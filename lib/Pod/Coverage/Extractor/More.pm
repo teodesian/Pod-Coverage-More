@@ -36,7 +36,7 @@ sub command {
                 $argTypeList->{$arg} = '';
                 foreach my $type (@types) {
                     $type = lc($type);
-                    if (lc($text) =~ /$type/g) {
+                    if (lc($text) =~ /\b$type\b/) {
                         $argTypeList->{$arg} = $type;
                         last;
                     }

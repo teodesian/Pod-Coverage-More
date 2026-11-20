@@ -67,6 +67,20 @@ Test that names in signatures are lc'd, and that the types are correct using met
 
 =back
 
+=head2 testMixedKindSigs(count,stuff,items)
+
+Test that each arg is checked against its own type, whatever order the types come in.
+
+=over 4
+
+=item count - INTEGER
+
+=item stuff - MIXED
+
+=item items - ARRAY
+
+=back
+
 =head2 testScalarSigs($dog,\$human,\@cat,\%cow,\&chupacabra,\*xenomorph)
 
 =head2 testArraySigs(@input)
@@ -106,6 +120,10 @@ sub testArraySigs1 {
 
 sub testHashSigs1 {
     my %input = @_;
+}
+
+sub testMixedKindSigs {
+    my ($count,$stuff,@items) = @_;
 }
 
 1;
