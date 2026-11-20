@@ -50,7 +50,7 @@ sub command {
             #XXX Not particularly optimized, but do you really care for POD tests?
             if (eq_deeply($frow,$self->{'current_function_map'})) {
                 $frow->{'arglist'} = {} if !exists($frow->{'arglist'});
-                @{$frow->{'arglist'}}{keys($argTypeList)} = values($argTypeList);
+                @{$frow->{'arglist'}}{keys %$argTypeList} = values %$argTypeList;
                 last;
             }
         }
