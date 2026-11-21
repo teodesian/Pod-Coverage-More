@@ -9,8 +9,12 @@ use re q{/xsaa};
 
 use B               ();
 use List::Util      qw{any};
-use Module::Runtime qw{require_module};
+use Module::Runtime qw{require_module module_notional_filename};
 use Package::Stash;
+
+use Pod::Coverage::More::Declared;
+use Pod::Coverage::More::Types qw{type_of_value type_of_usage type_named};
+use Scalar::Util               qw{blessed};
 
 # The pad and SV helpers return an explicit undef because their callers put them in hash constructors,
 # where a bare return would give an empty list and shift every pair after it.
@@ -140,6 +144,11 @@ sub backend_for {
 Returns a HASHREF that maps the name of each sub defined in PACKAGE to the record that C<analyze_sub> returns.
 PACKAGE must already be loaded.
 
+When a class builder or a signature module declares a sub, as L<Pod::Coverage::More::Declared> reads it,
+its record also has C<declared>: that declaration, with C<wrapped> in place of its C<body>,
+and each parameter that a declared one matches has C<declared>, the declared L<Type::Tiny> constraint.
+The record of a sub that only wraps the code that does the work describes that code.
+
 Subs that PACKAGE imported from another package are left out.
 
 =cut
@@ -147,17 +156,44 @@ Subs that PACKAGE imported from another package are left out.
 sub analyze_package {
     my ( $self, $package ) = @_;
 
-    my %subs;
     my $stash = Package::Stash->new($package);
-    foreach my $name ( sort $stash->list_all_symbols(q{CODE}) ) {
+    my %code;
+    foreach my $name ( $stash->list_all_symbols(q{CODE}) ) {
         my $code = $stash->get_symbol("&$name");
+        $code{$name} = $code if _defined_in( B::svref_2object($code) ) eq $package;
+    }
 
-        my $cv = B::svref_2object($code);
-        next if _defined_in($cv) ne $package;
-
-        $subs{$name} = $self->analyze_sub( $code, $name, $package );
+    my $declared = Pod::Coverage::More::Declared->declarations_for( $package, [ sort keys %code ] );
+    my %subs;
+    foreach my $name ( sort keys %code ) {
+        my $declaration = $declared->{$name};
+        my $body        = $declaration ? $declaration->{body} : undef;
+        $subs{$name} = $self->analyze_sub( $body // $code{$name}, $name, $package );
+        _attach_declaration( $subs{$name}, $declaration ) if $declaration;
     }
     return \%subs;
+}
+
+# Records DECLARATION on the record REC, and the declared type of each parameter on the parameter that it matches:
+# by name, or else by position.  The invocant is never matched, because a class builder and the code number it differently.
+sub _attach_declaration {
+    my ( $rec, $declaration ) = @_;
+    my %declared = %$declaration;
+    $declared{wrapped} = delete( $declared{body} ) ? 1 : 0;
+    $rec->{declared} = \%declared;
+
+    foreach my $param ( @{ $rec->{params} } ) {
+        foreach my $candidate ( @{ $declaration->{params} } ) {
+            next if $candidate->{invocant} || !$candidate->{type};
+            my $by_name     = defined $candidate->{name}  && defined $param->{name}      && $candidate->{name} eq $param->{name};
+            my $by_position = !defined $candidate->{name} && defined $candidate->{index} && $candidate->{index} == $param->{index};
+            next if !$by_name && !$by_position;
+            $param->{declared}    = $candidate->{type};
+            $param->{declared_by} = $declaration->{via};
+            last;
+        }
+    }
+    return;
 }
 
 =head2 analyze_sub(CODEREF, NAME, PACKAGE)
@@ -174,13 +210,21 @@ Returns a HASHREF with what the op tree of CODEREF shows:
 
 =item B<file>, B<line> - STRING, INTEGER - where the body starts
 
-=item B<generated> - BOOLEAN - true when the sub has no source file of its own, or it was installed under a different name
+=item B<generated> - BOOLEAN - true when the sub has no source file of its own, was installed under a different name,
+or was compiled in a file other than the one that PACKAGE was loaded from, as an accessor that a class builder installs
 
-=item B<params> - ARRAYREF - one HASHREF per parameter, in order: C<name> (undef when it has none), C<index>, C<source> (C<shift>, C<list>, C<element> or C<signature>), C<slurpy>, C<optional>, C<default> and C<keys>
+=item B<method> - BOOLEAN - true for a C<method> of the core class feature, whose parameter 0 is the implicit C<$self>
+
+=item B<params> - ARRAYREF - one HASHREF per parameter, in order: C<name> (undef when it has none), C<index>, C<source> (C<shift>, C<list>, C<element>, C<signature>, C<invocant>, or C<checked> for a parameter that a call such as C<< $check->(@_) >> returns), C<slurpy>, C<optional>, C<default>, C<keys>,
+C<inferred>, the L<Type::Tiny> constraint that the uses of the parameter in the body amount to, or undef,
+and C<declared>, a constraint that the code declares for it, with C<declared_by>, what declared it:
+a guard such as C<assert_Int($x)> of a L<Type::Library> or a type check that L<Method::Signatures> compiled,
+a checker of L<Type::Params>, or the declaration of a class builder or a signature module
 
 =item B<usage> - HASHREF - per lexical variable, how the body uses it: C<hashref>, C<arrayref>, C<coderef>, C<numeric>, C<string>, C<methods> and C<keys>
 
-=item B<returns> - ARRAYREF - one HASHREF per value the sub can return, with C<type>, C<line> and C<implicit>, plus details per type
+=item B<returns> - ARRAYREF - one HASHREF per value the sub can return, with C<type>, C<line> and C<implicit>,
+C<constraint>, the L<Type::Tiny> constraint that the value satisfies when the evidence says, plus details per type
 
 =item B<dies> - ARRAYREF - one HASHREF per explicit termination, with C<via>, C<line> and C<caught>
 
@@ -196,7 +240,8 @@ sub analyze_sub {
         name      => $name,
         package   => $package,
         file      => $cv->FILE,
-        generated => ( $cv->GV->NAME ne $name || $cv->FILE =~ m/\A\(eval/ ) ? 1 : 0,
+        generated => _is_generated( $cv, $name, $package ),
+        method    => 0,
         params    => [],
         usage     => {},
         returns   => [],
@@ -206,7 +251,8 @@ sub analyze_sub {
     if ( $cv->CvFLAGS & B::CVf_CONST ) {
         $rec{kind}  = 'constant';
         $rec{value} = $code->();
-        push @{ $rec{returns} }, _sv_evidence( B::svref_2object( \$rec{value} ) );
+        my $returned = _sv_evidence( B::svref_2object( \$rec{value} ) );
+        push @{ $rec{returns} }, { %$returned, constraint => type_of_value($returned) };
         return \%rec;
     }
     if ( $cv->XSUB ) {
@@ -227,6 +273,8 @@ sub analyze_sub {
         line_of   => {},
         line      => undef,
         signature => undef,
+        checkers  => {},
+        guards    => {},
       },
       ref $self;
 
@@ -234,11 +282,19 @@ sub analyze_sub {
     push @{ $rec{returns} }, map { +{ %$_, implicit => 1 } } $walker->_implicit_returns( $cv->ROOT );
     $walker->finish_sub( \%rec );
 
+    foreach my $returned ( @{ $rec{returns} } ) {
+        $returned->{constraint} = type_of_value($returned);
+    }
     @{ $rec{params} } = sort { $a->{index} <=> $b->{index} } @{ $rec{params} };
     foreach my $param ( @{ $rec{params} } ) {
         next unless defined $param->{name};
         my $keys = $rec{usage}{ $param->{name} }{keys};
-        $param->{keys} = [@$keys] if $keys;
+        $param->{keys}     = [@$keys] if $keys;
+        $param->{inferred} = type_of_usage( $rec{usage}{ $param->{name} } || {} );
+        if ( my $guard = $walker->{guards}{ $param->{name} } ) {
+            $param->{declared}    = $guard->{type};
+            $param->{declared_by} = $guard->{by};
+        }
     }
     return \%rec;
 }
@@ -305,6 +361,15 @@ Returns the kids of OP, in order, for the handlers of subclasses.
 sub op_kids {
     my ( undef, $op ) = @_;
     return _kids($op);
+}
+
+# Whether something other than the source of PACKAGE wrote the sub: a closure installed under another name,
+# a string eval, or a sub compiled in another file, as a class builder compiles accessors.
+sub _is_generated {
+    my ( $cv, $name, $package ) = @_;
+    return 1 if $cv->GV->NAME ne $name || $cv->FILE =~ m/\A\(eval/;
+    my $own = $INC{ module_notional_filename($package) };
+    return ( defined $own && $cv->FILE ne $own ) ? 1 : 0;
 }
 
 # The package the sub was compiled in, as opposed to the one it was imported into.
@@ -600,6 +665,34 @@ sub _assign_from_args {
         $self->{consumed}{$$value} = 1;
         $self->_add_param( name => $target_name, index => _elem_index($value), source => 'element' );
     }
+    elsif ( my ( $elem, $default, $mode ) = $self->_defaulted_elem($value) ) {
+        $self->{consumed}{$$elem} = 1;
+        $self->_add_param(
+            name     => $target_name,
+            index    => _elem_index($elem),
+            source   => 'element',
+            optional => 1,
+            default  => { mode => $mode, value => [ $self->classify($default) ] },
+        );
+    }
+    return;
+}
+
+# $_[N] with a default: @_ > N ? $_[N] : DEFAULT, as Method::Signatures and hand-written code say it, or $_[N] // DEFAULT.
+# Returns the element, the default, and how the default applies, or nothing.
+sub _defaulted_elem {
+    my ( $self, $op ) = @_;
+    my $name = $op->name;
+    if ( $name eq 'cond_expr' ) {
+        my ( undef, $then, $else ) = _kids($op);
+        $then = _unwrap($then);
+        return ( $then, $else, q{=} ) if $then->name eq 'aelemfast' && $self->_is_args_elem($then);
+    }
+    if ( $name eq 'dor' || $name eq 'or' ) {
+        my ( $left, $right ) = _kids($op);
+        $left = _unwrap($left);
+        return ( $left, $right, $name eq 'dor' ? q{//=} : q{||=} ) if $left->name eq 'aelemfast' && $self->_is_args_elem($left);
+    }
     return;
 }
 
@@ -643,6 +736,151 @@ sub _on_aassign {
         $self->{consumed}{ ${ _unwrap( $values[0] ) } } = 1;
         $self->_add_param( name => $self->_padname( $targets[0]->targ ), index => $self->{shifted}++, source => 'shift' );
     }
+    elsif ( my $checked = $self->_checked_call( $values[0] ) ) {
+        my @types = @{ $checked->{types} };
+        foreach my $target (@targets) {
+            my $name = $self->_padname( $target->targ );
+            if ( $target->name ne 'padsv' ) {
+                $self->_add_param( name => $name, index => $self->{shifted}, source => 'checked' );
+                last;
+            }
+            my $type = shift @types;
+            $self->_add_param(
+                name   => $name,
+                index  => $self->{shifted}++,
+                source => 'checked',
+                $type ? ( declared => $type, declared_by => $checked->{by} ) : (),
+            );
+        }
+    }
+    return;
+}
+
+# A call that checks the arguments of the sub, such as $check->(@_), validate(\@_, ...) or validate_pos(@_, ...):
+# returns the types it checks them against, by position, as far as the op tree shows them, or nothing when OP is no such call.
+sub _checked_call {
+    my ( $self, $op ) = @_;
+    $op = _unwrap($op);
+    return if $op->name ne 'entersub';
+    my ( $target, $args ) = $self->_call_target($op);
+    my @rest = @$args;
+    my $receives_args;
+    while ( my $arg = shift @rest ) {
+        my $value = _unwrap($arg);
+        $value = _unwrap( ( _kids($value) )[0] ) if $value->name eq 'srefgen' && _kids($value);
+        next if !$self->_is_args_array($value);
+        $receives_args = 1;
+        last;
+    }
+    return if !$receives_args;
+
+    if ( ( $target->{function} // q{} ) eq 'Type::Params::validate' ) {
+        return { types => $self->_try_static_values( \@rest ), by => 'Type::Params' };
+    }
+    my $checker = defined $target->{coderef} ? $self->{checkers}{ $target->{coderef} } : undef;
+    return { types => [ @{ $checker // [] } ], by => 'Type::Params' };
+}
+
+# The value that OP builds from constants and calls to the type functions of a Type::Library, as in Optional[Str].
+# Dies when OP builds anything else.
+# It walks the op tree of one expression, and so recursion is its natural form.
+## no critic (Subroutines::ProhibitTailRecursion)
+sub _static_value {
+    my ( $self, $op ) = @_;
+    $op = _unwrap($op);
+    my $name = $op->name;
+    return _sv_value( $self->_const_sv($op) ) if $name eq 'const';
+    if ( $name eq 'anonlist' ) {
+        my @values;
+        foreach my $kid ( _significant_kids($op) ) {
+            push @values, $self->_static_value($kid);
+        }
+        return \@values;
+    }
+    if ( $name eq 'entersub' ) {
+        my ( $target,  $args ) = $self->_call_target($op);
+        my ( $library, $type ) = ( $target->{function} // q{} ) =~ m/\A(.+)::(\w+)\z/;
+        die "not a type\n"               if !$type || !_is_type_library($library) || !$library->has_type($type);
+        return $library->get_type($type) if !@$args;
+        my @values;
+        foreach my $arg (@$args) {
+            push @values, $self->_static_value($arg);
+        }
+        return $library->can($type)->(@values);
+    }
+    die "not a static value\n";
+}
+## use critic
+
+# The value of _static_value, or undef when OP builds anything else.
+sub _try_static_value {
+    my ( $self, $op ) = @_;
+    my $value;
+    return eval { $value = $self->_static_value($op); 1 } ? $value : undef;
+}
+
+# The values of _try_static_value for each op of the ARRAYREF OPS.
+sub _try_static_values {
+    my ( $self, $ops ) = @_;
+    my @values;
+    foreach my $op (@$ops) {
+        push @values, $self->_try_static_value($op);
+    }
+    return \@values;
+}
+
+sub _is_type_library {
+    my ($package) = @_;
+    my $is;
+    return eval { $is = $package->isa('Type::Library'); 1 } ? $is : 0;
+}
+
+# Records the types that compile() of Type::Params returns a checker for, under the variable the checker is assigned to.
+sub _note_checker {
+    my ( $self, $args, $ancestors ) = @_;
+    my $parent = $ancestors->[-1] // return;
+    my $var;
+    $var = $self->_padname( $parent->targ ) if $parent->name eq 'padsv_store';
+    if ( $parent->name eq 'sassign' ) {
+        my ( undef, $target ) = _kids($parent);
+        $target = _unwrap($target);
+        $var    = $self->_padname( $target->targ ) if $target->name eq 'padsv';
+    }
+    return if !defined $var;
+    $self->{checkers}{$var} = $self->_try_static_values($args);
+    return;
+}
+
+our %GUARD_METHODS = map { $_ => 1 } qw{assert_valid assert_return check};
+
+# Records the type that a guard checks a variable against: is_X($var) and assert_X($var) of a Type::Library,
+# TYPE->assert_valid($var) and its kind, and the type_error() calls that Method::Signatures compiles.
+sub _note_guard {
+    my ( $self, $target, $args ) = @_;
+    my ( $type, $checked, $by );
+
+    if ( defined $target->{function} ) {
+        my ( $library, $guard ) = $target->{function} =~ m/\A(.+)::(?:assert|is)_(\w+)\z/;
+        return if !$guard || !_is_type_library($library) || !$library->has_type($guard);
+        ( $type, $checked, $by ) = ( $library->get_type($guard), $args->[0], 'Type::Tiny' );
+    }
+    elsif ( $target->{type} eq 'method' && defined $target->{method} ) {
+        my $invocant = $args->[0] // return;
+        if ( $GUARD_METHODS{ $target->{method} } ) {
+            $type = $self->_try_static_value($invocant);
+            ( $checked, $by ) = ( $args->[1], 'Type::Tiny' );
+        }
+        elsif ( $target->{method} eq 'type_error' && ( $self->_try_static_value($invocant) // q{} ) eq 'Method::Signatures' ) {
+            my $name = $self->_try_static_value( $args->[1] );
+            $type = type_named($name);
+            ( $checked, $by ) = ( $args->[2], 'Method::Signatures' );
+        }
+    }
+    return if !$type || !blessed($type) || !$checked;
+    $checked = _unwrap($checked);
+    return if $checked->name ne 'padsv';
+    my $var = $self->_padname( $checked->targ ) // return;
+    $self->{guards}{$var} = { type => $type, by => $by };
     return;
 }
 
@@ -812,6 +1050,9 @@ sub _on_entersub {
     my ( $self, $op, $ancestors ) = @_;
     my ( $target, $args ) = $self->_call_target($op);
     return if !$target;
+
+    $self->_note_checker( $args, $ancestors ) if ( $target->{function} // q{} ) eq 'Type::Params::compile';
+    $self->_note_guard( $target, $args );
 
     if ( $target->{type} eq 'method' ) {
         $self->_add_method_use( $args->[0], $target->{method} );

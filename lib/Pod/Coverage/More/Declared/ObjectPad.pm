@@ -1,0 +1,84 @@
+# ABSTRACT: Declarations of the classes of Object::Pad
+# PODNAME: Pod::Coverage::More::Declared::ObjectPad
+
+package Pod::Coverage::More::Declared::ObjectPad;
+
+use 5.036;
+use warnings FATAL => q{all};
+
+use Pod::Coverage::More::Declared;
+
+use Types::Standard qw{InstanceOf};
+
+=head1 DESCRIPTION
+
+Reads a class of L<Object::Pad> through its metaclass, C<Object::Pad::MOP::Class>.
+Each method declares its implicit C<$self>, each field with C<:param> a named parameter of the constructor C<new>,
+and each field with C<:reader> its reader.  Object::Pad has no types, so these declarations have none,
+and its metaclass does not say whether a field has a default, so a named parameter of C<new> has an C<optional> of undef.
+
+The metaclass API of Object::Pad is experimental.  The core class feature is expected to take a metaclass API like it,
+and then this provider is the model for one for core classes.
+
+=head1 METHODS
+
+=head2 applies_to(PACKAGE)
+
+Returns true when Object::Pad built PACKAGE.
+
+=cut
+
+sub applies_to {
+    my ( $class, $package ) = @_;
+    return _metaclass($package) ? 1 : 0;
+}
+
+sub _metaclass {
+    my ($package) = @_;
+    return if !$INC{'Object/Pad.pm'};
+
+    # The metaclass API warns that it is experimental, and fatal warnings would make that a death.
+    no warnings q{experimental};
+    return eval { Object::Pad::MOP::Class->for_class($package) };
+}
+
+=head2 declarations(PACKAGE, NAMES)
+
+Returns the declarations of the subs of PACKAGE that the ARRAYREF NAMES lists, as L<Pod::Coverage::More::Declared> describes them.
+
+=cut
+
+sub declarations {
+    my ( $class, $package, $names ) = @_;
+    my $meta = _metaclass($package);
+    my %own  = map { $_ => 1 } @$names;
+    my %declared;
+    my @named;
+
+    no warnings q{experimental};    # as in _metaclass
+    foreach my $method ( $meta->direct_methods ) {
+        next if !$own{ $method->name };
+        $declared{ $method->name } = { via => 'Object::Pad', role => 'method', params => [ _self() ], returns => [] };
+    }
+    foreach my $field ( $meta->fields ) {
+        my $param = $field->get_attribute_value('param');
+        push @named, { name => $field->name, named => $param, type => undef, optional => undef, invocant => 0 }
+          if defined $param;
+        my $reader = $field->get_attribute_value('reader');
+        $declared{$reader} = { via => 'Object::Pad', role => 'reader', attribute => $field->name, params => [ _self() ], returns => [] }
+          if defined $reader && $own{$reader};
+    }
+    $declared{new} = {
+        via     => 'Object::Pad',
+        role    => 'constructor',
+        params  => [ Pod::Coverage::More::Declared->invocant, @named ],
+        returns => [ InstanceOf [$package] ],
+    };
+    return \%declared;
+}
+
+sub _self {
+    return Pod::Coverage::More::Declared->invocant(q{$self});
+}
+
+1;

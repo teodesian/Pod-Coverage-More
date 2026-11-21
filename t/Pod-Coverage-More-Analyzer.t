@@ -35,6 +35,26 @@ sub returns_of {
     ];
 }
 
+# The names of the constraints under KEY of each record of ITEMS, with a dash where there is none.
+sub constraint_names {
+    my ( $items, $key ) = @_;
+    my @names;
+    foreach my $item (@$items) {
+        push @names, $item->{$key} ? $item->{$key}->display_name : q{-};
+    }
+    return \@names;
+}
+
+# Each parameter of a record with its declared constraint and what declared it, or a dash.
+sub declared_of {
+    my ($rec) = @_;
+    my @short;
+    foreach my $param ( @{ $rec->{params} } ) {
+        push @short, ( $param->{name} // q{?} ) . q{:} . ( $param->{declared} ? $param->{declared}->display_name . " by $param->{declared_by}" : q{-} );
+    }
+    return \@short;
+}
+
 subtest backend_for => sub {
     like( dies { Pod::Coverage::More::Analyzer::backend_for(5.034) },    qr/not[ ]supported/, "5.34 is older than the oldest version set" );
     like( dies { Pod::Coverage::More::Analyzer::backend_for(5.035999) }, qr/not[ ]supported/, "the last 5.35 is still older than the oldest version set" );
@@ -70,12 +90,13 @@ subtest constants => sub {
 };
 
 subtest positional_parameters => sub {
-    is( params_of( $subs->{shifted} ),      [ '$self#0:shift', '$name#1:shift' ],                "each shift takes the next index" );
-    is( params_of( $subs->{listed} ),       [ '$self#0:list', '$first#1:list', '@rest#2:list' ], "a list assignment from \@_ ends with its slurpy array" );         ## no critic (RequireQwForLiteralLists) qw warns about the # in each
-    is( params_of( $subs->{elements} ),     [ '?#0:element', '?#1:element' ],                    "\$_[N] used directly gives unnamed parameters" );
-    is( params_of( $subs->{shift_method} ), ['?#0:shift'],                                       "shift->method gives an unnamed parameter" );
-    is( params_of( $subs->{anon_inside} ),  ['$x#0:shift'],                                      "the shift inside a nested anonymous sub belongs to that sub" );
-    is( params_of( $subs->{generated} ),    ['$q#0:list'],                                       "a closure assigned to a glob has its parameters read" );
+    is( params_of( $subs->{shifted} ),      [ '$self#0:shift', '$name#1:shift' ],                                                          "each shift takes the next index" );
+    is( params_of( $subs->{listed} ),       [ '$self#0:list', '$first#1:list', '@rest#2:list' ],                                           "a list assignment from \@_ ends with its slurpy array" );         ## no critic (RequireQwForLiteralLists) qw warns about the # in each
+    is( params_of( $subs->{elements} ),     [ '?#0:element', '?#1:element' ],                                                              "\$_[N] used directly gives unnamed parameters" );
+    is( params_of( $subs->{defaulted} ),    [ q{$x#0:element}, q{$y#1:element optional default =}, q{$z#2:element optional default //=} ], "\$_[N] with a default is an optional parameter" );
+    is( params_of( $subs->{shift_method} ), ['?#0:shift'],                                                                                 "shift->method gives an unnamed parameter" );
+    is( params_of( $subs->{anon_inside} ),  ['$x#0:shift'],                                                                                "the shift inside a nested anonymous sub belongs to that sub" );
+    is( params_of( $subs->{generated} ),    ['$q#0:list'],                                                                                 "a closure assigned to a glob has its parameters read" );
     ok( $subs->{generated}{generated}, "a closure assigned to a glob is marked generated" );
     ok( !$subs->{shifted}{generated},  "a named sub is not marked generated" );
     is( params_of( $subs->{evaled} ), [ '$self#0:list', '$value#1:list' ], "a sub built by string eval has its parameters read" );
@@ -161,6 +182,45 @@ subtest signature_defaults_5_38 => sub {
     );
     is( $signed->{defaults}{params}[1]{default}{value}, [ { type => 'string', value => 'z' } ], "the value of a //= default" );
     is( $signed->{defaults}{params}[2]{default}{value}, [ { type => 'arrayref' } ],             "the value of a ||= default" );
+};
+
+subtest constraints => sub {
+    my @params = @{ $subs->{uses}{params} };
+    my %inferred;
+    @inferred{ map { $_->{name} } @params } = @{ constraint_names( \@params, q{inferred} ) };
+    is( \%inferred,                                                   { q{$num} => q{Num}, q{$str} => q{Str}, q{$code} => q{CodeRef}, q{$obj} => q{HasMethods["render"]} }, "each parameter has the constraint that its uses amount to" );
+    is( $subs->{hashref_arg}{params}[1]{inferred}->display_name,      q{HashRef},                                                                                           "a parameter dereferenced as a hash is a HashRef" );
+    is( constraint_names( $subs->{ternary}{returns}, q{constraint} ), [qw{ArrayRef Undef}],                                                                                 "each value a sub returns has its constraint" );
+    is( $subs->{fixed_class}{returns}[0]{constraint}->display_name,   q{InstanceOf["Some::Class"]},                                                                         "an object of a literal class is an instance of it" );
+    is( $subs->{LIMIT}{returns}[0]{constraint}->display_name,         q{Int},                                                                                               "so does the value of a constant" );
+    ok( !defined $subs->{shifted}{returns}[0]{constraint}, "a returned variable has no constraint by itself" );
+};
+
+subtest declared_by_the_code => sub {
+    require Guarded;
+    my $guarded = $analyzer->analyze_package(q{Guarded});
+    is( declared_of( $guarded->{guarded} ),           [ q{$count:Int by Type::Tiny}, q{$opts:HashRef by Type::Tiny}, q{$list:ArrayRef by Type::Tiny}, q{$thing:InstanceOf["Foo"] by Type::Tiny} ], "a guard of a Type::Library declares the type of the variable it checks" );
+    is( declared_of( $guarded->{compiled} ),          [ q{$x:Int by Type::Params}, q{$y:Optional[Str] by Type::Params} ], "a checker that compile() returned declares its types by position" );
+    is( declared_of( $guarded->{validated} ),         [ q{$x:Int by Type::Params}, q{$y:Str by Type::Params} ],           "so does validate()" );
+    is( params_of( $guarded->{via_plain_checker} ),   [ q{$x#0:checked},           q{%rest#1:checked} ],                  "a call that receives \@_ names the parameters it returns, even with no types" );
+    is( declared_of( $guarded->{via_plain_checker} ), [ q{$x:-},                   q{%rest:-} ],                          "and declares no types that the op tree does not show" );
+};
+
+subtest generated => sub {
+    require Installed;
+    my $installed = $analyzer->analyze_package(q{Installed});
+    ok( $installed->{helper}{generated}, "a sub that another file compiled and installed under the name of the package is generated" );
+    ok( !$installed->{own}{generated},   "a sub that the package compiled itself is not" );
+};
+
+subtest core_class => sub {
+    skip_all("perl $] has no class feature") if $] < 5.038;
+    require CoreClass;
+    my $class = $analyzer->analyze_package(q{CoreClass});
+    is( params_of( $class->{add} ),  [ q{$self#0:invocant}, q{$item#1:signature}, q{$qty#2:signature optional default =} ], "the implicit \$self of a method with a signature is parameter 0" );
+    is( params_of( $class->{name} ), [q{$self#0:invocant}],                                                                 "a method without a signature still takes \$self" );
+    ok( $class->{add}{method},  "a method of the class feature is marked a method" );
+    ok( !$class->{new}{method}, "its constructor is not" );
 };
 
 subtest without_multideref => sub {

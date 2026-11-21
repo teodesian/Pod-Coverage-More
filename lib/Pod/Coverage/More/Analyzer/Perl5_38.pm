@@ -51,6 +51,31 @@ sub default_mode {
     return '=';
 }
 
+# A method of the core class feature takes an implicit $self, which argcheck does not count.
+sub finish_sub {
+    my ( $self, $rec ) = @_;
+    $self->SUPER::finish_sub($rec);
+    return if !( $self->{cv}->CvFLAGS & B::CVf_IsMETHOD );
+    $rec->{method} = 1;
+    foreach my $param ( @{ $rec->{params} } ) {
+        $param->{index}++ if $param->{source} eq q{signature};
+    }
+    $self->_add_invocant($rec);
+    return;
+}
+
+# Makes parameter 0 of a method its implicit $self.
+sub _add_invocant {
+    my ( $self, $rec ) = @_;
+    my ($invocant) = grep { $_->{index} == 0 && ( $_->{name} // q{} ) eq q{$self} } @{ $rec->{params} };
+    if ($invocant) {
+        $invocant->{source} = q{invocant};
+        return;
+    }
+    unshift @{ $rec->{params} }, { name => q{$self}, index => 0, source => q{invocant}, slurpy => 0, optional => 0 };
+    return;
+}
+
 # The assignment of one value to a lexical scalar, whose target is the op's own pad entry.
 sub _on_padsv_store {
     my ( $self, $op ) = @_;

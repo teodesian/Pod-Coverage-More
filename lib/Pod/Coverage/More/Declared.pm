@@ -1,0 +1,106 @@
+# ABSTRACT: What class builders and signature modules declare about the subs of a package
+# PODNAME: Pod::Coverage::More::Declared
+
+package Pod::Coverage::More::Declared;
+
+use 5.036;
+use warnings FATAL => q{all};
+
+use Module::Runtime qw{require_module};
+
+=head1 SYNOPSIS
+
+    use Pod::Coverage::More::Declared;
+
+    my $declared = Pod::Coverage::More::Declared->declarations_for( 'Pod::Coverage::More::Declared', ['declarations_for'] );
+
+=head1 DESCRIPTION
+
+Class builders and signature modules keep what a programmer declared about a sub: the types of its parameters,
+which ones are required, what it returns, and which attribute an accessor reads.
+This module asks one provider per such system, and each provider answers only for a package that its system built.
+No provider loads its system, with one exception: a Moo class is read through its Moose metaclass, which loads Moose.
+
+=head1 DECLARATIONS
+
+A declaration is a HASHREF:
+
+=over 4
+
+=item B<via> - STRING - the system that declared it, such as C<Moose> or C<Function::Parameters>
+
+=item B<role> - STRING - C<constructor>, C<reader>, C<writer>, C<accessor>, C<predicate>, C<clearer>, C<method> or C<function>
+
+=item B<params> - ARRAYREF - one HASHREF per parameter: C<name>, the variable or undef, C<index> for a positional parameter
+or C<named> for the key of a named one, C<type>, a L<Type::Tiny> constraint or undef, C<optional> and C<invocant>
+
+=item B<returns> - ARRAYREF - the L<Type::Tiny> constraints that the sub is declared to return
+
+=item B<attribute>, B<documentation> - STRING - the attribute that an accessor or a constructor parameter belongs to, and its documentation
+
+=item B<body> - CODEREF - the code that does the work, when the sub in the symbol table only wraps it
+
+=back
+
+=head1 PROVIDERS
+
+=over 4
+
+=item L<Pod::Coverage::More::Declared::TypeParams> - signatures of L<Type::Params>
+
+=item L<Pod::Coverage::More::Declared::FunctionParameters> - L<Function::Parameters>
+
+=item L<Pod::Coverage::More::Declared::Kavorka> - L<Kavorka>
+
+=item L<Pod::Coverage::More::Declared::MOP> - L<Moose>, L<Mouse> and L<Moo>
+
+=item L<Pod::Coverage::More::Declared::ObjectPad> - L<Object::Pad>
+
+=item L<Pod::Coverage::More::Declared::ClassTiny> - L<Class::Tiny>
+
+=back
+
+=cut
+
+# Signatures of single subs first: when a class builder also declares the sub, the signature is more specific.
+our @PROVIDERS = map { "Pod::Coverage::More::Declared::$_" } qw{TypeParams FunctionParameters Kavorka MOP ObjectPad ClassTiny};
+
+=head1 METHODS
+
+=head2 invocant(NAME)
+
+Returns the declaration of the invocant of a method, parameter 0, named NAME or with no name, for the providers.
+
+=cut
+
+sub invocant {
+    my ( $class, $name ) = @_;
+    return { name => $name, index => 0, type => undef, optional => 0, invocant => 1 };
+}
+
+=head2 declarations_for(PACKAGE, NAMES)
+
+Returns a HASHREF that maps each sub name in the ARRAYREF NAMES to its declaration, for the subs of PACKAGE that a provider declares.
+When two providers declare the same sub, the first in the list above wins, and a C<body> from a later one fills in a missing one.
+
+=cut
+
+sub declarations_for {
+    my ( $class, $package, $names ) = @_;
+    my %declared;
+    foreach my $provider (@PROVIDERS) {
+        require_module($provider);
+        next if !$provider->applies_to($package);
+        my $found = $provider->declarations( $package, $names );
+        foreach my $name ( keys %$found ) {
+            if ( !$declared{$name} ) {
+                $declared{$name} = $found->{$name};
+                next;
+            }
+            $declared{$name}{body} //= $found->{$name}{body};
+        }
+    }
+    return \%declared;
+}
+
+1;
