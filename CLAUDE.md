@@ -7,7 +7,8 @@ Pod-Coverage-More makes sure that the POD of a module documents more than the na
 of its subs: their arguments, argument types, return values and terminations.
 Read `lib/Pod/Coverage/More.pm` first.  `lib/Pod/Coverage/More/Analyzer.pm`
 infers those facts from the op tree that perl compiles for each sub.
-`lib/Pod/Coverage/Extractor/More.pm` reads them from the POD.
+`lib/Pod/Coverage/More/Documentation.pm` reads them from the POD, and
+`lib/Test/Pod/Coverage/More.pm` runs the checks as tests.
 
 ## Read the code before you change it
 

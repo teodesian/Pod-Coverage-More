@@ -11,133 +11,109 @@ version 0.001
 ```perl
 use Pod::Coverage::More;
 
-my $pc    = Pod::Coverage::More->new(package => 'Quux');
-my $acov  = $pc->coverage_arguments();
-my $atcov = $pc->coverage_argument_types();
+my $pc     = Pod::Coverage::More->new( package => 'Pod::Coverage::More' );
+my $report = $pc->coverage_report;
+my $acov   = $pc->coverage_arguments;
+print $acov->{message} if !$acov->{status};
 ```
 
 # DESCRIPTION
 
-Extends Pod::Coverage to handle more things, like whether you are specifying args for your subroutines and whether that matches up with the subroutine's use of @\_.
+Extends [Pod::Coverage](https://metacpan.org/pod/Pod%3A%3ACoverage), which makes sure that the POD names each public sub of a module,
+to make sure that the POD also says what each sub takes, returns, and how it fails.
+It compares what [Pod::Coverage::More::Documentation](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3ADocumentation) reads from the POD
+with what [Pod::Coverage::More::Analyzer](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3AAnalyzer) reads from the compiled subs,
+and the types that they name as [Type::Tiny](https://metacpan.org/pod/Type%3A%3ATiny) constraints.
 
-Will also optionally check that you describe your arguments (name them sometime before the next sub is mentioned), and optionally check whether you list it's expected type(s).
+[Test::Pod::Coverage::More](https://metacpan.org/pod/Test%3A%3APod%3A%3ACoverage%3A%3AMore) runs these checks as tests.
 
-Also checks for a description of the return value(s) and it's expected type(s).
+# WRITING THE POD
 
-Also checks for descriptions of the function possibly causing termination incidents (croak/die,etc).
+A heading names the subs that its section documents, each with an optional argument list,
+and an `=item` per argument gives its type.  [Pod::Coverage::More::Documentation](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3ADocumentation) describes the forms in full.
 
-Also can check for examples in your POD.
+```perl
+=head2 resize($width, $height)
 
-For multiple functions described on one line, you can separate them with commas or spaces.  But for arguments, you must use commas; wouldn't want to confuse the copypasters out there.
+=over 4
+
+=item width - Int - in pixels
+
+=item height - Int - in pixels
+
+=back
+
+Returns a Image object.  Dies when either size is not positive.
+
+    my $smaller = $image->resize( 100, 50 );
+```
+
+For several functions on one line, separate them with commas or spaces; for arguments, use commas.
+An argument list can give the sigils of the arguments, as `($foo, @bar, \%baz)`.
+Then the sigils are compared with those of the parameters, and no `=item` is needed.
+
+# THE CHECKS
+
+Each check applies to the public subs that have a section in the POD.
+A sub without one is the business of `coverage`.
+
+- **arguments** - each argument that the POD names is a parameter of the sub: a variable assigned from `@_`,
+a parameter of a signature, a key of a hash of named arguments, or a parameter that a class builder or a signature module declares
+- **argument\_types** - each argument has a documented type that agrees with the code.  A documented type must be the type that
+the code declares or a narrower one, so that the POD never promises that the sub takes what it refuses.
+A type that the code only implies by its use of the argument fails only when it contradicts the documented one,
+as a hash reference where the code uses an array reference.
+- **returns** - a sub that returns a value says so with a `Returns` paragraph or an `=item Returns`,
+and the documented types cover every type that the code returns or declares
+- **termination** - a sub that can die, croak, confess, throw or exit, outside an `eval` or `try`, says so
+- **examples** - the section has a verbatim paragraph that calls the sub, by `name(` or `->name`
 
 # OVERRIDDEN METHODS
 
 ## coverage
 
-Should do the same thing as Pod::Coverage, but with a slightly more complex algorithm for getting arguments, et cetera.
-Much like Pod::Coverage, it supports multiple functions being described per line.
-
-You should use this if you want to have the rest of the functions here work too, as it has a significant caveat.
-
-### CAVEAT:
-
-item commands are parsed as arguments to subroutines, not as subroutine entries.  This makes strategy 1) in coverage\_argument\_types possible.
-It makes sense to me, given arguments are _items_ in _lists_.
+Returns the fraction of the public subs that the POD documents, as [Pod::Coverage](https://metacpan.org/pod/Pod%3A%3ACoverage) does,
+from the headings that [Pod::Coverage::More::Documentation](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3ADocumentation) reads.
 
 # METHODS
 
+## coverage\_report
+
+Returns a HASHREF from the name of each public sub that has a section in the POD to a HASHREF with `section`,
+the section that `section_for` of [Pod::Coverage::More::Documentation](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3ADocumentation) returns, and `failures`,
+a HASHREF from the name of each check in THE CHECKS to an ARRAYREF of the messages of its failures, empty when it passes.
+
+Returns nothing when there is no POD to rate, and `why_unrated` says why.
+
 ## coverage\_arguments
 
-Looks for arguments to your functions described.  In general, valid barewords or variable names inside of parens following a function name is expected.
-Uses [Pod::Coverage::More::Analyzer](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3AAnalyzer) to check that the names are parameters of your subroutine:
-variables assigned from @\_ or a shift of it, signature parameters, or the keys read from a hash or hashref parameter of named arguments.
-Names are not case sensitive, and will attempt to obey declared sigils (see 1. in coverage\_argument\_types).
-
-TODO add compatibility for Function::Parameters and other CPAN signature modules.
+Returns a HASHREF with `status`, true when the **arguments** check passes for every sub, and `message`,
+the messages of its failures, one per line, or undef.  The other methods below return the same for their check.
 
 ## coverage\_argument\_types
 
-Looks for a type to be declared for your arguments described for a particular function.
-
-This can be done one of two ways:
-
-1\. Use standard variable notation in your arglist known by coverage\_arguments (e.g. do ($foo,@bar,%baz,\\$fred,\\@wilma,\\%barney,\\&bam\_bam,\\\*betty) or some variation thereof)
-
-2\. Specify the types by name in an =item block somewhere between it and the next detected subroutine(s).  Example:
-
-```perl
-=head2 some_sub(ARG1,ARG2)
-
-does stuff
-
-ARGUMENTS:
-
-=over4
-
-=item B<ARG1> - INTEGER - does something weird
-
-=item B<ARG2> - HASHREF - does something not so weird
-...
-```
-
-As usual, the type and variable name search is case insensitive.
-
-Recognized types:
-
-SCALAR,SCALARREF,ARRAY,ARRAYREF,HASH,HASHREF,CODEREF,TYPEGLOBREF and OBJECT,STRING,INTEGER,FLOAT,BOOLEAN (the latter five and the REFs are aliases to SCALAR when comparing versus the sigil of the parameter)
-
-You can also cheat and say MIXED to skip type checks.  Not the way I'd write a sub, but to each their own.
-
-These two strategies are mutually exclusive; having sigils declared for your argument (strategy 1) will obviate it's search in a following block (strategy 2).
-
-### TODO:
-
-recognize types from Type::Tiny or other MOPs
-
-### Maybe TODO:
-
-Recognize imported namespaces when named as being explicit statements of what type of OBJECT we want an arg to be under vanilla perl
-
-use the usage that [Pod::Coverage::More::Analyzer](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3AAnalyzer) reports (using scalar as if HASHREF, etc...) to infer the data type in vanilla perl?
-
-### Probably Shouldn't TODO:
-
-Infer vanilla types from standard guard clauses (if they exist???) for OBJECT,STRING,INTEGER,FLOAT,BOOLEAN (isa,!looks\_like\_number,Regexp::Common trickery)
-Make the hammer of shame fall when said guard clauses are not detected
+The **argument\_types** check.
 
 ## coverage\_return\_types
 
-Uses [Pod::Coverage::More::Analyzer](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3AAnalyzer) to find out the sort of data your function returns, and then looks for an adequate description in a text block following function definition.
-Acceptable return types are same as accepted for coverage\_argument\_types.
-
-TODO: the comparison against the POD is not implemented yet.
-For now this returns the analysis of every sub in the package, a HASHREF of the records that `analyze_sub` of [Pod::Coverage::More::Analyzer](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3AAnalyzer) returns,
-or 0 when the POD names no functions.
+The **returns** check.
 
 ## coverage\_termination
 
-Not implemented yet: returns the string `stub`.
-
-It is meant to find the spots where your code explicitly croaks/dies/confesses or otherwise goes down in flames,
-from the `dies` that [Pod::Coverage::More::Analyzer](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3AAnalyzer) reports,
-and return failure when you do not provide adequate warnings to the user foolish enough to attempt usage of said code.
-
-In general, say the code dies/exits/croaks/confesses on some condition in a text block following function definition and you should be good to go.
+The **termination** check.
 
 ## coverage\_examples
 
-Not implemented yet: returns the string `stub`.
-
-It is meant to look through the verbatim blocks following function definition(s) for examples of said functions' (correct) usage.
-Basically runs the signature,type, return type and termination coverage algorithms on said verbatim block.
+The **examples** check.
 
 # SEE ALSO
 
 Please see those modules/websites for more information related to this module.
 
 - [Pod::Coverage](https://metacpan.org/pod/Pod%3A%3ACoverage)
-- [Pod::Coverage::Extractor::More](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AExtractor%3A%3AMore)
+- [Pod::Coverage::More::Documentation](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3ADocumentation)
 - [Pod::Coverage::More::Analyzer](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3AAnalyzer)
+- [Test::Pod::Coverage::More](https://metacpan.org/pod/Test%3A%3APod%3A%3ACoverage%3A%3AMore)
 
 # BUGS
 
