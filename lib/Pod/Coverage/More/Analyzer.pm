@@ -12,6 +12,7 @@ use List::Util      qw{any};
 use Module::Runtime qw{require_module module_notional_filename};
 use Package::Stash;
 
+use Pod::Coverage::More::Declared;
 use Pod::Coverage::More::Types qw{type_of_value type_of_usage};
 
 # The pad and SV helpers return an explicit undef because their callers put them in hash constructors,
@@ -142,6 +143,11 @@ sub backend_for {
 Returns a HASHREF that maps the name of each sub defined in PACKAGE to the record that C<analyze_sub> returns.
 PACKAGE must already be loaded.
 
+When a class builder or a signature module declares a sub, as L<Pod::Coverage::More::Declared> reads it,
+its record also has C<declared>: that declaration, with C<wrapped> in place of its C<body>,
+and each parameter that a declared one matches has C<declared>, the declared L<Type::Tiny> constraint.
+The record of a sub that only wraps the code that does the work describes that code.
+
 Subs that PACKAGE imported from another package are left out.
 
 =cut
@@ -149,17 +155,43 @@ Subs that PACKAGE imported from another package are left out.
 sub analyze_package {
     my ( $self, $package ) = @_;
 
-    my %subs;
     my $stash = Package::Stash->new($package);
-    foreach my $name ( sort $stash->list_all_symbols(q{CODE}) ) {
+    my %code;
+    foreach my $name ( $stash->list_all_symbols(q{CODE}) ) {
         my $code = $stash->get_symbol("&$name");
+        $code{$name} = $code if _defined_in( B::svref_2object($code) ) eq $package;
+    }
 
-        my $cv = B::svref_2object($code);
-        next if _defined_in($cv) ne $package;
-
-        $subs{$name} = $self->analyze_sub( $code, $name, $package );
+    my $declared = Pod::Coverage::More::Declared->declarations_for( $package, [ sort keys %code ] );
+    my %subs;
+    foreach my $name ( sort keys %code ) {
+        my $declaration = $declared->{$name};
+        my $body        = $declaration ? $declaration->{body} : undef;
+        $subs{$name} = $self->analyze_sub( $body // $code{$name}, $name, $package );
+        _attach_declaration( $subs{$name}, $declaration ) if $declaration;
     }
     return \%subs;
+}
+
+# Records DECLARATION on the record REC, and the declared type of each parameter on the parameter that it matches:
+# by name, or else by position.  The invocant is never matched, because a class builder and the code number it differently.
+sub _attach_declaration {
+    my ( $rec, $declaration ) = @_;
+    my %declared = %$declaration;
+    $declared{wrapped} = delete( $declared{body} ) ? 1 : 0;
+    $rec->{declared} = \%declared;
+
+    foreach my $param ( @{ $rec->{params} } ) {
+        foreach my $candidate ( @{ $declaration->{params} } ) {
+            next if $candidate->{invocant} || !$candidate->{type};
+            my $by_name     = defined $candidate->{name}  && defined $param->{name}      && $candidate->{name} eq $param->{name};
+            my $by_position = !defined $candidate->{name} && defined $candidate->{index} && $candidate->{index} == $param->{index};
+            next if !$by_name && !$by_position;
+            $param->{declared} = $candidate->{type};
+            last;
+        }
+    }
+    return;
 }
 
 =head2 analyze_sub(CODEREF, NAME, PACKAGE)

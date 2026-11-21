@@ -26,3 +26,7 @@ checks:
       # Measured with autovivification 0.18 on perl 5.44: its CAVEATS mention
       # only a slower compilation.
       Variables::RequireNoAutovivification: off
+      # Class builders and keyword modules, which the test fixtures import for
+      # the keywords they export (has, class, fun), a use the policy cannot see.
+      ProhibitUnusedImports:
+        allow: Moose Moo Mouse Class::Tiny Object::Pad Kavorka

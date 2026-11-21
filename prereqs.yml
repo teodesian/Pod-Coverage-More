@@ -4,3 +4,15 @@
 runtime:
   requires:
     perl: '5.036'
+  recommends:
+    # Pod::Coverage::More::Declared reads a Moo class through the Moose metaclass that Moo inflates.
+    Moose: '0'
+test:
+  recommends:
+    Moose: '0'
+    Moo: '0'
+    Mouse: '0'
+    Class::Tiny: '0'
+    Function::Parameters: '0'
+    Kavorka: '0'
+    Object::Pad: '0'
