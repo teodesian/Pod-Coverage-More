@@ -11,7 +11,7 @@ use Exporter qw{import};
 use Type::Registry;
 use Type::Tiny::Intersection;
 use Type::Tiny::Union;
-use Types::Standard qw{Any ArrayRef Bool CodeRef GlobRef HasMethods HashRef InstanceOf Int Num Object Ref ScalarRef Str Undef};
+use Types::Standard qw{Any ArrayRef Bool CodeRef GlobRef HasMethods HashRef InstanceOf Int Maybe Num Object Ref ScalarRef Str Undef};
 
 our @EXPORT_OK = qw{type_of_value type_of_usage type_named};
 
@@ -36,6 +36,9 @@ Each function returns undef when the evidence says nothing about the type.
 =head2 type_of_value(EVIDENCE)
 
 Returns the constraint that a value satisfies, from one HASHREF of evidence that C<classify> of L<Pod::Coverage::More::Analyzer> returns.
+A number whose evidence has a true C<integer>, such as the count of an array, is an C<Int>.
+With a true C<maybe_undef> as well, as the length of a string, it is a C<Maybe[Int]>.
+An object whose evidence names C<classes>, as the numbers of the scope of C<use bignum>, is an instance of one of them.
 
 =cut
 
@@ -45,6 +48,8 @@ sub type_of_value {
 
     if ( $type eq 'number' ) {
         my $value = $evidence->{value};
+        return Maybe [Int] if $evidence->{integer} && $evidence->{maybe_undef};
+        return Int         if $evidence->{integer};
         return ( defined $value && $value =~ m/\A-?\d+\z/ ) ? Int : Num;
     }
     return Str  if $type eq 'string';
@@ -58,6 +63,15 @@ sub type_of_value {
     return CodeRef  if $type eq 'coderef';
     return Ref      if $type eq 'ref';
     if ( $type eq 'object' ) {
+        my @classes = @{ $evidence->{classes} || [] };
+        return InstanceOf [ $classes[0] ] if @classes == 1;
+        if ( @classes > 1 ) {
+            my @instances;
+            foreach my $class (@classes) {
+                push @instances, InstanceOf [$class];
+            }
+            return Type::Tiny::Union->new( type_constraints => \@instances );
+        }
         return defined $evidence->{class} ? InstanceOf [ $evidence->{class} ] : Object;
     }
     return;

@@ -55,6 +55,16 @@ sub declared_of {
     return \@short;
 }
 
+# The constraint of each value that a record returns, marked weak where an operator gave it.
+sub returns_with_weakness {
+    my ($rec) = @_;
+    my @short;
+    foreach my $returned ( @{ $rec->{returns} } ) {
+        push @short, ( $returned->{constraint} ? $returned->{constraint}->display_name : q{-} ) . ( $returned->{weak} ? q{ weak} : q{} );
+    }
+    return \@short;
+}
+
 subtest backend_for => sub {
     like( dies { Pod::Coverage::More::Analyzer::backend_for(5.034) },    qr/not[ ]supported/, "5.34 is older than the oldest version set" );
     like( dies { Pod::Coverage::More::Analyzer::backend_for(5.035999) }, qr/not[ ]supported/, "the last 5.35 is still older than the oldest version set" );
@@ -204,6 +214,16 @@ subtest declared_by_the_code => sub {
     is( declared_of( $guarded->{validated} ),         [ q{$x:Int by Type::Params}, q{$y:Str by Type::Params} ],           "so does validate()" );
     is( params_of( $guarded->{via_plain_checker} ),   [ q{$x#0:checked},           q{%rest#1:checked} ],                  "a call that receives \@_ names the parameters it returns, even with no types" );
     is( declared_of( $guarded->{via_plain_checker} ), [ q{$x:-},                   q{%rest:-} ],                          "and declares no types that the op tree does not show" );
+};
+
+subtest numbers => sub {
+    require Big;
+    my $big = $analyzer->analyze_package(q{Big});
+    is( returns_with_weakness( $big->{literal} ), [q{InstanceOf["Math::BigInt"]}],      "a literal under use bigint is a Math::BigInt, for certain" );
+    is( returns_with_weakness( $big->{sum} ),     [q{InstanceOf["Math::BigInt"] weak}], "arithmetic under use bigint gives a Math::BigInt, as far as an operator says" );
+    is( returns_with_weakness( $big->{sized} ),   [q{Maybe[Int] weak}],                 "length outside the scope of bigint is a whole number or undef, as far as an operator says" );
+    is( returns_with_weakness( $big->{PAIR} ),    [q{ArrayRef}],                        "a constant that holds an array reference is an ArrayRef" );
+    is( returns_with_weakness( $subs->{listed} ), [q{Int}],                             "the count of an array is an Int, which no overloading changes" );
 };
 
 subtest generated => sub {
