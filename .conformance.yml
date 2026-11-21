@@ -1,0 +1,13 @@
+flavor: troglodyne-compat
+source:
+  git: https://github.com/Troglodyne-Internet-Widgets/perl-slop-plugin.git
+  path: skills/packaging-perl
+variables:
+  DIST: Pod-Coverage-More
+  AUTHOR_NAME: George S. Baugh
+  AUTHOR_EMAIL: teodesian@cpan.org
+  COPYRIGHT_HOLDER: George S. Baugh
+  YEAR: '2014-2026'
+  CPAN_ID: TEODESIAN
+  # Pod::Coverage::More::Analyzer decodes the op trees of 5.36 and later only.
+  PERL_FLOOR: '5.036'
