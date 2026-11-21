@@ -1,0 +1,12 @@
+package Signed538;
+
+# Signature syntax that perl 5.38 added: defaults that apply only to an undef or a false argument.
+# t/Pod-Coverage-More-Analyzer.t loads this only on 5.38 and later, because 5.36 cannot compile it.
+
+use v5.38;
+
+sub defaults ( $x, $z //= 'z', $w ||= [] ) {
+    return $x;
+}
+
+1;

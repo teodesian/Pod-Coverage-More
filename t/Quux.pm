@@ -142,6 +142,17 @@ sub wsSep4{
 }
 sub wsSep5{}
 
+=head2 namedArgs(size,count)
+
+Test arguments that are keys of a hash of named arguments
+
+=cut
+
+sub namedArgs {
+    my ($self,%opts) = @_;
+    return $opts{size} * $opts{count};
+}
+
 1;
 
 __END__
