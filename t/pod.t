@@ -6,7 +6,7 @@ use lib "$FindBin::Bin";
 
 use Scalar::Util qw{reftype};
 use Test::More;
-use Test::Pod 'tests' => 14;
+use Test::Pod 'tests' => 17;
 use Test::Pod::Coverage;
 use Pod::Coverage::More;
 
@@ -38,13 +38,19 @@ is($res->{'message'}, undef, "No message provided when everything is OK");
 $pc = Pod::Coverage::More->new(package => 'Xenu');
 $res = $pc->coverage_arguments();
 is(reftype($res),'HASH',"Coverage arguments returns hashref");
-ok($res->{'status'},"Got correct arg coverage for test module Quux");
+ok($res->{'status'},"Got correct arg coverage for test module Xenu");
 is($res->{'message'}, undef, "No message provided when everything is OK");
 
 note "Verify arg type coverage is adequate";
+my ($caseGroup) = grep { grep { $_ eq q{testCaseInsensitivitySigs} } @{ $_->{all} } }
+    @{ $pc->_get_more_pods->{function_maps} };
+my %xenuTypes = %{ $caseGroup->{arglist} };
+is($xenuTypes{cat}, q{scalarref}, "A SCALARREF item is not read as SCALAR");
+is($xenuTypes{goat}, q{arrayref}, "An ARRAYREF item is not read as ARRAY");
+is($xenuTypes{pig}, q{hashref}, "A hashref item is not read as HASH");
 $res = $pc->coverage_argument_types();
 is(reftype($res),'HASH',"Coverage arguments types returns hashref");
-ok($res->{'status'},"Got correct arg type coverage for test module Quux");
+ok($res->{'status'},"Got correct arg type coverage for test module Xenu");
 is($res->{'message'}, undef, "No message provided when everything is OK");
 
 note "Verify return type coverage is adequate";
