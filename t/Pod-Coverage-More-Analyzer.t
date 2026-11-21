@@ -163,6 +163,23 @@ subtest signature_defaults_5_38 => sub {
     is( $signed->{defaults}{params}[2]{default}{value}, [ { type => 'arrayref' } ],             "the value of a ||= default" );
 };
 
+subtest generated => sub {
+    require Installed;
+    my $installed = $analyzer->analyze_package(q{Installed});
+    ok( $installed->{helper}{generated}, "a sub that another file compiled and installed under the name of the package is generated" );
+    ok( !$installed->{own}{generated},   "a sub that the package compiled itself is not" );
+};
+
+subtest core_class => sub {
+    skip_all("perl $] has no class feature") if $] < 5.038;
+    require CoreClass;
+    my $class = $analyzer->analyze_package(q{CoreClass});
+    is( params_of( $class->{add} ),  [ q{$self#0:invocant}, q{$item#1:signature}, q{$qty#2:signature optional default =} ], "the implicit \$self of a method with a signature is parameter 0" );
+    is( params_of( $class->{name} ), [q{$self#0:invocant}],                                                                 "a method without a signature still takes \$self" );
+    ok( $class->{add}{method},  "a method of the class feature is marked a method" );
+    ok( !$class->{new}{method}, "its constructor is not" );
+};
+
 subtest without_multideref => sub {
 
     # Last, because loading autovivification stops perl compiling multideref for code compiled after it.

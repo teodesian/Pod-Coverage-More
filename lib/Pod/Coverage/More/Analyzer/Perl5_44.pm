@@ -32,8 +32,13 @@ sub op_handlers {
     };
 }
 
-# The placeholders that Perl5_36 fills in from argcheck are listed in multiparam itself.
+# The placeholders that Perl5_36 fills in from argcheck are listed in multiparam itself,
+# and so is the implicit $self of a method of the core class feature.
 sub finish_sub {
+    my ( $self, $rec ) = @_;
+    return if !( $self->{cv}->CvFLAGS & B::CVf_IsMETHOD );
+    $rec->{method} = 1;
+    $self->_add_invocant($rec);
     return;
 }
 

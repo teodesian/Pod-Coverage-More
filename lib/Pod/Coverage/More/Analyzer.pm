@@ -9,7 +9,7 @@ use re q{/xsaa};
 
 use B               ();
 use List::Util      qw{any};
-use Module::Runtime qw{require_module};
+use Module::Runtime qw{require_module module_notional_filename};
 use Package::Stash;
 
 # The pad and SV helpers return an explicit undef because their callers put them in hash constructors,
@@ -174,9 +174,12 @@ Returns a HASHREF with what the op tree of CODEREF shows:
 
 =item B<file>, B<line> - STRING, INTEGER - where the body starts
 
-=item B<generated> - BOOLEAN - true when the sub has no source file of its own, or it was installed under a different name
+=item B<generated> - BOOLEAN - true when the sub has no source file of its own, was installed under a different name,
+or was compiled in a file other than the one that PACKAGE was loaded from, as an accessor that a class builder installs
 
-=item B<params> - ARRAYREF - one HASHREF per parameter, in order: C<name> (undef when it has none), C<index>, C<source> (C<shift>, C<list>, C<element> or C<signature>), C<slurpy>, C<optional>, C<default> and C<keys>
+=item B<method> - BOOLEAN - true for a C<method> of the core class feature, whose parameter 0 is the implicit C<$self>
+
+=item B<params> - ARRAYREF - one HASHREF per parameter, in order: C<name> (undef when it has none), C<index>, C<source> (C<shift>, C<list>, C<element>, C<signature> or C<invocant>), C<slurpy>, C<optional>, C<default> and C<keys>
 
 =item B<usage> - HASHREF - per lexical variable, how the body uses it: C<hashref>, C<arrayref>, C<coderef>, C<numeric>, C<string>, C<methods> and C<keys>
 
@@ -196,7 +199,8 @@ sub analyze_sub {
         name      => $name,
         package   => $package,
         file      => $cv->FILE,
-        generated => ( $cv->GV->NAME ne $name || $cv->FILE =~ m/\A\(eval/ ) ? 1 : 0,
+        generated => _is_generated( $cv, $name, $package ),
+        method    => 0,
         params    => [],
         usage     => {},
         returns   => [],
@@ -305,6 +309,15 @@ Returns the kids of OP, in order, for the handlers of subclasses.
 sub op_kids {
     my ( undef, $op ) = @_;
     return _kids($op);
+}
+
+# Whether something other than the source of PACKAGE wrote the sub: a closure installed under another name,
+# a string eval, or a sub compiled in another file, as a class builder compiles accessors.
+sub _is_generated {
+    my ( $cv, $name, $package ) = @_;
+    return 1 if $cv->GV->NAME ne $name || $cv->FILE =~ m/\A\(eval/;
+    my $own = $INC{ module_notional_filename($package) };
+    return ( defined $own && $cv->FILE ne $own ) ? 1 : 0;
 }
 
 # The package the sub was compiled in, as opposed to the one it was imported into.
