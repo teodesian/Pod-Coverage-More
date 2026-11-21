@@ -26,7 +26,7 @@ Test function with underscores
 =cut
 
 sub some_other_function {
-    my ($arg,$arg2) = @_;
+    my ( $arg, $arg2 ) = @_;
 }
 
 =head2 someFunctionWithArgs(nugs,gravy,milk)
@@ -36,7 +36,7 @@ Test arg'd function
 =cut
 
 sub someFunctionWithArgs {
-    my ($nugs,$gravy,$milk) = @_;
+    my ( $nugs, $gravy, $milk ) = @_;
     print "$nugs, $gravy, $milk\n";
 }
 
@@ -47,10 +47,11 @@ Test multiple arg'd functions
 =cut
 
 sub fun1 {
-    my ($arg0,$arg1) = @_;
+    my ( $arg0, $arg1 ) = @_;
 }
+
 sub fun2 {
-    my ($arg2,$arg3) = @_;
+    my ( $arg2, $arg3 ) = @_;
 }
 
 =head2 fun3(arg1,arg2),fun4,fun5(arg)
@@ -60,9 +61,10 @@ Test mixed arg/no arg
 =cut
 
 sub fun3 {
-    my ($arg1,$arg2) = @_;
+    my ( $arg1, $arg2 ) = @_;
 }
-sub fun4 {}
+sub fun4 { }
+
 sub fun5 {
     my $arg = shift;
 }
@@ -77,17 +79,18 @@ sub fullyQualifiedFunction {
     my $arg = shift;
 }
 
-
 =head2 B<formattedFunction>,B<formattedFunctionWithArgs (foo,bar)>,B<Quux::qualifiedFormattedFunction(arg)>
 
 Test POD formatting
 
 =cut
 
-sub formattedFunction {}
+sub formattedFunction { }
+
 sub formattedFunctionWithArgs {
-    my ($foo,$bar) = @_;
+    my ( $foo, $bar ) = @_;
 }
+
 sub qualifiedFormattedFunction {
     my $arg = shift;
 }
@@ -99,7 +102,7 @@ Test whitespace oddities
 =cut
 
 sub tidiedFunction {
-    my ($arg1,$arg2) = @_;
+    my ( $arg1, $arg2 ) = @_;
 }
 
 =head2 $qx->someMethod(arr)
@@ -118,9 +121,10 @@ Test lines with semicolons
 
 =cut
 
-sub semiColon {}
+sub semiColon { }
+
 sub semiColonWithArgs {
-    my ($whee,$zap) = @_;
+    my ( $whee, $zap ) = @_;
 }
 
 =head2 wsSep wsSep2(whee, zap, tickle) wsSep3(poo) wsSep4( goo, quux ) wsSep5
@@ -129,18 +133,21 @@ Test separating functions by space.
 
 =cut
 
-sub wsSep {}
-sub wsSep2{
-    my ($whee,$zap,$tickle) = @_;
+sub wsSep { }
+
+sub wsSep2 {
+    my ( $whee, $zap, $tickle ) = @_;
 }
-sub wsSep3{
+
+sub wsSep3 {
     my $poo = shift;
 }
-sub wsSep4{
-    my ($goo,$quux) = @_;
+
+sub wsSep4 {
+    my ( $goo, $quux ) = @_;
     my $horgle;
 }
-sub wsSep5{}
+sub wsSep5 { }
 
 =head2 namedArgs(size,count)
 
@@ -149,7 +156,7 @@ Test arguments that are keys of a hash of named arguments
 =cut
 
 sub namedArgs {
-    my ($self,%opts) = @_;
+    my ( $self, %opts ) = @_;
     return $opts{size} * $opts{count};
 }
 

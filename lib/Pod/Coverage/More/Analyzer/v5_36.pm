@@ -34,7 +34,7 @@ sub op_handlers {
 sub finish_sub {
     my ( $self, $rec ) = @_;
     my $signature = $self->{signature} or return;
-    my %seen = map { $_->{index} => 1 } @{ $rec->{params} };
+    my %seen      = map { $_->{index} => 1 } @{ $rec->{params} };
     foreach my $index ( 0 .. $signature->{params} - 1 ) {
         next if $seen{$index};
         $self->_add_param(

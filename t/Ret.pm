@@ -66,7 +66,7 @@ returns ARRAYREF of integers.
 
 #Compound data types
 sub ret6 {
-    return [1,2,3];
+    return [ 1, 2, 3 ];
 }
 
 =head2 ret7
@@ -76,7 +76,7 @@ returns ARRAY of integers.
 =cut
 
 sub ret7 {
-    return (1,2,3);
+    return ( 1, 2, 3 );
 }
 
 =head2 ret8
@@ -107,7 +107,7 @@ returns someClass object.
 
 #Check objects
 sub ret10 {
-    return bless('a','someClass');
+    return bless( 'a', 'someClass' );
 }
 
 =head2 ret11
@@ -118,7 +118,7 @@ returns output of function ret1.
 
 #The big kahuna -- walk functions
 sub ret11 {
-    return ret1('a','b');
+    return ret1( 'a', 'b' );
 }
 
 =head2 ret12(abcd)
@@ -131,7 +131,8 @@ Returns MIXED: 1 or 0
 sub ret12 {
     if (1) {
         return 1;
-    } else {
+    }
+    else {
         return 0;
     }
 }
@@ -145,7 +146,8 @@ Returns MIXED: 1 or 0
 sub ret13 {
     unless (1) {
         return 1;
-    } else {
+    }
+    else {
         return 0;
     }
 }
@@ -189,7 +191,7 @@ returns instance of class 'eee'
 =cut
 
 sub ret17 {
-    return (bless 'whee', 'eee');
+    return ( bless 'whee', 'eee' );
 }
 
 =head2 ret18
@@ -209,7 +211,7 @@ Returns new "b" object.
 =cut
 
 sub ret19 {
-    return bless('a','b');
+    return bless( 'a', 'b' );
 }
 
 =head2 ret20

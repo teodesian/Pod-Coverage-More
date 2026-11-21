@@ -92,11 +92,11 @@ Test that the names in signatures are correctly searched for, and that the types
 =cut
 
 sub testSignature {
-    my ($dog,$cat) = @_;
+    my ( $dog, $cat ) = @_;
 }
 
 sub testScalarSigs {
-    my ($dog,$human,$cat,$cow,$chupacabra,$xenomorph) = @_;
+    my ( $dog, $human, $cat, $cow, $chupacabra, $xenomorph ) = @_;
 }
 
 sub testArraySigs {
@@ -111,7 +111,7 @@ sub testHashSigs {
 #Neither can typeglobs.
 
 sub testCaseInsensitivitySigs {
-    my ($dog,$cat,$goat,$pig,$llama,$alpaca,$chicken,$rabbit,$snake,$horse,$farmer) = @_;
+    my ( $dog, $cat, $goat, $pig, $llama, $alpaca, $chicken, $rabbit, $snake, $horse, $farmer ) = @_;
 }
 
 sub testArraySigs1 {
@@ -123,7 +123,7 @@ sub testHashSigs1 {
 }
 
 sub testMixedKindSigs {
-    my ($count,$stuff,@items) = @_;
+    my ( $count, $stuff, @items ) = @_;
 }
 
 1;

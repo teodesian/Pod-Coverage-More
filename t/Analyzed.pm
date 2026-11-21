@@ -6,10 +6,10 @@ package Analyzed;
 use strict;
 use warnings;
 
-use Carp qw{croak};
+use Carp         qw{croak};
 use Scalar::Util qw{blessed};
 
-use constant LIMIT => 5;
+use constant LIMIT    => 5;
 use constant GREETING => 'hello';
 
 sub shifted {

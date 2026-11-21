@@ -69,13 +69,14 @@ sub coverage {
 
     my %symbols = map { $_ => 0 } $self->_get_syms($package);
 
-    if (!%symbols && $self->{why_unrated}) {
+    if ( !%symbols && $self->{why_unrated} ) {
+
         # _get_syms failed violently
         return;
     }
 
     print "tying shoelaces\n" if TRACE_ALL;
-    my @pods = @{$podInfo->{'identifiers'}};
+    my @pods = @{ $podInfo->{'identifiers'} };
     for my $pod (@pods) {
         $symbols{$pod} = 1 if exists $symbols{$pod};
     }
@@ -92,8 +93,8 @@ sub coverage {
         print Data::Dumper::Dumper($self);
     }
 
-    my $symbols = scalar keys %symbols;
-    my $documented = scalar grep {$_} values %symbols;
+    my $symbols    = scalar keys %symbols;
+    my $documented = scalar grep { $_ } values %symbols;
     unless ($symbols) {
         $self->{why_unrated} = "no public symbols defined";
         return;
@@ -120,32 +121,33 @@ sub coverage_arguments {
     my $package = $self->{package};
     my $podInfo = $self->_get_more_pods;
     $self->_extract_function_information;
-    my ($fun,$funargs,$peekedargs,$failMsg);
+    my ( $fun, $funargs, $peekedargs, $failMsg );
 
-    foreach my $subrow (@{$podInfo->{'function_maps'}}) {
+    foreach my $subrow ( @{ $podInfo->{'function_maps'} } ) {
+
         #Process each function, be they having args or not
-        foreach my $function (@{$subrow->{'all'}}) {
-            $funargs = [ @{ $self->_sub_args($function) }, @{ $self->_sub_named_keys($function) } ];
-            $subrow->{'sub_vars'} = {} if !exists($subrow->{'sub_vars'});
+        foreach my $function ( @{ $subrow->{'all'} } ) {
+            $funargs                           = [ @{ $self->_sub_args($function) }, @{ $self->_sub_named_keys($function) } ];
+            $subrow->{'sub_vars'}              = {} if !exists( $subrow->{'sub_vars'} );
             $subrow->{'sub_vars'}->{$function} = $funargs;
         }
 
         #Loop over declared functions/args and check against peek_sub results
-        foreach my $funWithArgs (keys(%{$subrow->{'args'}})) {
+        foreach my $funWithArgs ( keys( %{ $subrow->{'args'} } ) ) {
             $funargs     = clone $subrow->{'args'}->{$funWithArgs};
-            @$funargs    = map {my $subj = $_; $subj =~ s/[\$|\*|\\|@|%|&]+//g; lc($subj) } @$funargs;
+            @$funargs    = map { my $subj = $_; $subj =~ s/[\$|\*|\\|@|%|&]+//g; lc($subj) } @$funargs;
             $peekedargs  = clone $subrow->{'sub_vars'}->{$funWithArgs};
-            @$peekedargs = map {my $subj = $_; $subj =~ s/[\$|\*|\\|@|%|&]+//g; lc($subj) } @$peekedargs;
+            @$peekedargs = map { my $subj = $_; $subj =~ s/[\$|\*|\\|@|%|&]+//g; lc($subj) } @$peekedargs;
 
             foreach my $funarg (@$funargs) {
-                if (! grep { $_ eq $funarg } @$peekedargs) {
+                if ( !grep { $_ eq $funarg } @$peekedargs ) {
                     $failMsg .= "Var Mismatch for function $funWithArgs: $funarg not in @$peekedargs\n";
                 }
             }
         }
 
     }
-    return {'status' => $failMsg ? 0 : 1, 'message' => $failMsg};
+    return { 'status' => $failMsg ? 0 : 1, 'message' => $failMsg };
 
 }
 
@@ -209,55 +211,60 @@ sub coverage_argument_types {
     my $package = $self->{package};
     my $podInfo = $self->_get_more_pods;
     $self->_extract_function_information;
-    my ($fun,$funargs,$peekedargs,$argsWithSigils,$failMsg);
+    my ( $fun, $funargs, $peekedargs, $argsWithSigils, $failMsg );
     my %sigilTypes    = ( '$' => 'scalar', '@' => 'array', '%' => 'hash' );
     my %scalarAliases = map { $_ => 1 } qw{scalarref arrayref hashref coderef typeglobref object integer float boolean string};
 
-    foreach my $subrow (@{$podInfo->{'function_maps'}}) {
+    foreach my $subrow ( @{ $podInfo->{'function_maps'} } ) {
+
         #Process each function, be they having args or not
-        foreach my $function (@{$subrow->{'all'}}) {
-            $funargs = $self->_sub_args($function);
-            $subrow->{'sub_vars'} = {} if !exists($subrow->{'sub_vars'});
+        foreach my $function ( @{ $subrow->{'all'} } ) {
+            $funargs                           = $self->_sub_args($function);
+            $subrow->{'sub_vars'}              = {} if !exists( $subrow->{'sub_vars'} );
             $subrow->{'sub_vars'}->{$function} = $funargs;
         }
 
-
         #Loop over declared functions/args and check against peek_sub results
-        foreach my $funWithArgs (keys(%{$subrow->{'args'}})) {
-            $funargs     = clone $subrow->{'args'}->{$funWithArgs};
+        foreach my $funWithArgs ( keys( %{ $subrow->{'args'} } ) ) {
+            $funargs         = clone $subrow->{'args'}->{$funWithArgs};
             @$argsWithSigils = grep { m/^[\$|\*|\\|@|%|&]+/g } @$funargs;
-            #Replace REF looking args with $ sigils
-            @$funargs = map { my $subj = $_; $subj =~ s/^\\[\$|\*|@|%|&]/\$/g; $subj } @$funargs;
-            $peekedargs  = clone $subrow->{'sub_vars'}->{$funWithArgs};
 
-            if (!scalar(@$argsWithSigils)) {
-                my @podargs = keys(%{$subrow->{'arglist'}});
+            #Replace REF looking args with $ sigils
+            @$funargs   = map { my $subj = $_; $subj =~ s/^\\[\$|\*|@|%|&]/\$/g; $subj } @$funargs;
+            $peekedargs = clone $subrow->{'sub_vars'}->{$funWithArgs};
+
+            if ( !scalar(@$argsWithSigils) ) {
+                my @podargs = keys( %{ $subrow->{'arglist'} } );
+
                 #Then we need to look for it in the text blocks that were parsed for this function group.
                 #$failMsg .= "Type resolution 1 not implemented for $funWithArgs.\n";
                 foreach my $funarg (@$funargs) {
-                    if (! grep { lc($_) eq lc($funarg)} @podargs) {
+                    if ( !grep { lc($_) eq lc($funarg) } @podargs ) {
                         $failMsg .= "Var $funarg not documented whatsoever for $funWithArgs!\n";
                     }
                 }
 
                 #Check each peeked arg's sigil against the type documented for that arg
                 foreach my $peekedArg (@$peekedargs) {
-                    my ($sigil, $argName) = $peekedArg =~ m/^(.)(.+)$/;
+                    my ( $sigil, $argName ) = $peekedArg =~ m/^(.)(.+)$/;
                     my $peekedType = $sigilTypes{$sigil};
-                    my $podType    = $subrow->{'arglist'}->{lc($argName)};
+                    my $podType    = $subrow->{'arglist'}->{ lc($argName) };
+
                     #An arg with no =item has no documented type to compare
                     next if !defined $peekedType || !defined $podType;
-                    next if $podType eq 'mixed' || $podType eq $peekedType;
+                    next if $podType eq 'mixed'  || $podType eq $peekedType;
                     next if $peekedType eq 'scalar' && $scalarAliases{$podType};
-                    $failMsg .= $podType eq ''
-                        ? "No type declared for arg $argName of $funWithArgs\n"
-                        : "Type mismatch for arg $argName of $funWithArgs: got $podType, expected $peekedType\n";
+                    $failMsg .=
+                      $podType eq ''
+                      ? "No type declared for arg $argName of $funWithArgs\n"
+                      : "Type mismatch for arg $argName of $funWithArgs: got $podType, expected $peekedType\n";
                 }
                 next;
-            } else {
+            }
+            else {
                 #Should I make a different message if the sigil was omitted for lone args?
                 foreach my $funarg (@$funargs) {
-                    if (! grep { $_ eq $funarg } @$peekedargs) {
+                    if ( !grep { $_ eq $funarg } @$peekedargs ) {
                         $failMsg .= "Var Type Mismatch for function $funWithArgs: $funarg not in @$peekedargs\n";
                     }
                 }
@@ -266,7 +273,7 @@ sub coverage_argument_types {
         }
 
     }
-    return {'status' => $failMsg ? 0 : 1, 'message' => $failMsg};
+    return { 'status' => $failMsg ? 0 : 1, 'message' => $failMsg };
 
 }
 
@@ -285,7 +292,7 @@ sub coverage_return_types {
     my $self = shift;
 
     my $podInfo = $self->_get_more_pods;
-    return 0 if (reftype($podInfo->{'function_maps'}) || 'undef') ne "ARRAY";
+    return 0 if ( reftype( $podInfo->{'function_maps'} ) || 'undef' ) ne "ARRAY";
     return $self->_extract_function_information;
 }
 
@@ -321,7 +328,7 @@ sub _get_more_pods {
     my $self = shift;
 
     my $package = $self->{package};
-    $self->{'last_package'} = $package; #Track this so we can optimize by not calling the extractor twice for the same file
+    $self->{'last_package'} = $package;    #Track this so we can optimize by not calling the extractor twice for the same file
     return $self->{'last_pod'} if ( $self->{'last_package'} eq $self->{'package'} ) && $self->{'last_pod'};
 
     print "getting pod location for '$package'\n" if TRACE_ALL;
@@ -351,14 +358,14 @@ sub _extract_function_information {
 #Convenience methods to grab bits from the analysis of one sub.
 #A function the POD names but the package does not define has no record, and so no parameters.
 sub _sub_args {
-    my ($self,$sub) = @_;
+    my ( $self, $sub ) = @_;
     my $rec = $self->{'sub_parse'}->{$sub} or return [];
     return [ grep { defined } map { $_->{'name'} } @{ $rec->{'params'} } ];
 }
 
 #Keys read from a parameter of named arguments, such as %opts in my %opts = @_.
 sub _sub_named_keys {
-    my ($self,$sub) = @_;
+    my ( $self, $sub ) = @_;
     my $rec = $self->{'sub_parse'}->{$sub} or return [];
     return [ map { @{ $_->{'keys'} || [] } } @{ $rec->{'params'} } ];
 }
