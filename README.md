@@ -64,7 +64,9 @@ the code declares or a narrower one, so that the POD never promises that the sub
 A type that the code only implies by its use of the argument fails only when it contradicts the documented one,
 as a hash reference where the code uses an array reference.
 - **returns** - a sub that returns a value says so with a `Returns` paragraph or an `=item Returns`,
-and the documented types cover every type that the code returns or declares
+and the documented types cover every type that the code returns or declares.
+The type of the result of an operator, such as `$x * 2`, is only probable, because an operand of a class that overloads the operator
+makes the result an object of that class, as [Math::GMP](https://metacpan.org/pod/Math%3A%3AGMP) does; so such a type fails only when it is of another kind than every documented one
 - **termination** - a sub that can die, croak, confess, throw or exit, outside an `eval` or `try`, says so
 - **examples** - the section has a verbatim paragraph that calls the sub, by `name(` or `->name`
 

@@ -93,9 +93,20 @@ our %BOOLEAN_OPS = map { $_ => 1 } qw{
 
 # The ops whose result is always a whole number.
 our %INTEGER_OPS = map { $_ => 1 } qw{
-  int length index rindex ncmp scmp time
+  index rindex scmp time
   i_add i_subtract i_multiply i_divide i_modulo i_negate i_ncmp
 };
+
+# The ops whose result is a whole number or undef: length of undef, and <=> of NaN.
+our %MAYBE_INTEGER_OPS = map { $_ => 1 } qw{length ncmp};
+
+# The classes that the numbers of the scope of each bignum pragma are, by its key in %^H.
+our %BIG_CLASSES = (
+    bigint   => ['Math::BigInt'],
+    bignum   => [ 'Math::BigInt', 'Math::BigFloat' ],
+    bigrat   => ['Math::BigRat'],
+    bigfloat => ['Math::BigFloat'],
+);
 our %NUMBER_OPS = map { $_ => 1 } qw{
   add subtract multiply divide modulo pow negate abs int sqrt ncmp scmp
   i_add i_subtract i_multiply i_divide i_modulo i_negate i_ncmp
@@ -230,7 +241,8 @@ a checker of L<Type::Params>, or the declaration of a class builder or a signatu
 =item B<usage> - HASHREF - per lexical variable, how the body uses it: C<hashref>, C<arrayref>, C<coderef>, C<numeric>, C<string>, C<methods> and C<keys>
 
 =item B<returns> - ARRAYREF - one HASHREF per value the sub can return, with C<type>, C<line> and C<implicit>,
-C<constraint>, the L<Type::Tiny> constraint that the value satisfies when the evidence says, plus details per type
+C<constraint>, the L<Type::Tiny> constraint that the value satisfies when the evidence says,
+C<weak>, true when the value is the result of an operator, which overloading can change, plus details per type
 
 =item B<dies> - ARRAYREF - one HASHREF per explicit termination, with C<via>, C<line> and C<caught>
 
@@ -281,6 +293,8 @@ sub analyze_sub {
         signature => undef,
         checkers  => {},
         guards    => {},
+        big       => undef,
+        big_of    => {},
       },
       ref $self;
 
@@ -394,6 +408,7 @@ sub _walk {
     return if !$$op;
 
     $self->{line_of}{$$op} = $self->{line};
+    $self->{big_of}{$$op}  = $self->{big};
 
     my $handler = $self->{handlers}{ $op->name };
     $self->$handler( $op, $ancestors ) if $handler;
@@ -508,11 +523,18 @@ sub classify {
         my ($target) = $self->_call_target($op);
         return $target // { type => 'call' };
     }
-    return { type => 'boolean' }              if $BOOLEAN_OPS{$name};
-    return { type => 'number', integer => 1 } if $INTEGER_OPS{$name};
-    return { type => 'number' }               if $NUMBER_OPS{$name};
-    return { type => 'string' }               if $STRING_RESULT_OPS{$name};
-    return { type => 'list' }                 if $LIST_OPS{$name};
+    return _weak( { type => 'boolean' } ) if $BOOLEAN_OPS{$name};
+    if ( $NUMBER_OPS{$name} ) {
+
+        # A return statement classifies its value before the walk reaches it, in the scope of the statement.
+        my $big = exists $self->{big_of}{$$op} ? $self->{big_of}{$$op} : $self->{big};
+        return { type => 'object', classes => $big, weak => 1 }              if $big;
+        return _weak( { type => 'number', integer => 1 } )                   if $INTEGER_OPS{$name};
+        return _weak( { type => 'number', integer => 1, maybe_undef => 1 } ) if $MAYBE_INTEGER_OPS{$name};
+        return _weak( { type => 'number' } );
+    }
+    return _weak( { type => 'string' } ) if $STRING_RESULT_OPS{$name};
+    return { type => 'list' } if $LIST_OPS{$name};
     return { type => 'unknown', op => $name };
 }
 
@@ -595,9 +617,28 @@ sub _sv_evidence {
     my $class = B::class($sv);
     return { type => 'undef' } if $class eq 'SPECIAL' || $class eq 'NULL';
     my $flags = $sv->FLAGS;
+    return _reference_evidence( $sv->RV ) if $flags & B::SVf_ROK;
     return { type => 'string', value => $sv->PV }        if $flags & B::SVf_POK;
     return { type => 'number', value => _sv_value($sv) } if $flags & ( B::SVf_IOK | B::SVf_NOK );
     return { type => 'undef' };
+}
+
+# The result of an operator is only probable: an operand of a class that overloads the operator,
+# such as Math::GMP, makes it an object of that class.  So its EVIDENCE is weak.
+sub _weak {
+    my ($evidence) = @_;
+    return { %$evidence, weak => 1 };
+}
+
+# A constant that holds a reference, as use bigint makes of every numeric literal, or use constant of a list.
+sub _reference_evidence {
+    my ($referent) = @_;
+    return { type => 'object', class => $referent->SvSTASH->NAME } if $referent->FLAGS & B::SVs_OBJECT;
+    my $class = B::class($referent);
+    return { type => 'arrayref' } if $class eq 'AV';
+    return { type => 'hashref' }  if $class eq 'HV';
+    return { type => 'coderef' }  if $class eq 'CV';
+    return { type => 'ref' };
 }
 
 sub _fullname {
@@ -658,6 +699,10 @@ sub _on_cop {
     my ( $self, $op ) = @_;
     $self->{line} = $op->line;
     $self->{rec}{line} //= $op->line;
+
+    my $hints = $op->hints_hash->HASH;
+    my ($pragma) = grep { $hints->{$_} } sort keys %BIG_CLASSES;
+    $self->{big} = $pragma ? $BIG_CLASSES{$pragma} : undef;
     return;
 }
 

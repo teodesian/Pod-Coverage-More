@@ -183,4 +183,38 @@ sub woven {
     return $size;
 }
 
+=head2 overloaded_double(x)
+
+=over 4
+
+=item x - Any - a number, or an object of a class that overloads multiplication
+
+=back
+
+Returns a Money object.
+
+=cut
+
+sub overloaded_double {
+    my ($x) = @_;
+    return $x * 2;
+}
+
+=head2 weak_contradicted(x)
+
+=over 4
+
+=item x - Num - the number
+
+=back
+
+Returns HashRef.
+
+=cut
+
+sub weak_contradicted {
+    my ($x) = @_;
+    return $x + 1;
+}
+
 1;

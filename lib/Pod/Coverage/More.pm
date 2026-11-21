@@ -78,7 +78,9 @@ A type that the code only implies by its use of the argument fails only when it 
 as a hash reference where the code uses an array reference.
 
 =item B<returns> - a sub that returns a value says so with a C<Returns> paragraph or an C<=item Returns>,
-and the documented types cover every type that the code returns or declares
+and the documented types cover every type that the code returns or declares.
+The type of the result of an operator, such as C<$x * 2>, is only probable, because an operand of a class that overloads the operator
+makes the result an object of that class, as L<Math::GMP> does; so such a type fails only when it is of another kind than every documented one
 
 =item B<termination> - a sub that can die, croak, confess, throw or exit, outside an C<eval> or C<try>, says so
 
@@ -328,10 +330,13 @@ sub _check_returns {
 
     my @failures;
     my %seen;
-    my @checked = ( ( map { [ $_->{constraint}, "line $_->{line}" ] } grep { $_->{constraint} } @returned ), ( map { [ $_, 'declared' ] } @declared ) );
+    my @checked = ( ( map { [ $_->{constraint}, "line $_->{line}", $_->{weak} ] } grep { $_->{constraint} } @returned ), ( map { [ $_, 'declared', 0 ] } @declared ) );
     foreach my $returned (@checked) {
-        my ( $type, $where ) = @$returned;
+        my ( $type, $where, $weak ) = @$returned;
         next if _covered( $type, \@documented );
+
+        # The type of the result of an operator is weak: overloading can change it, so it fails only when it contradicts.
+        next if $weak && any { !_contradicts( $_, $type ) } @documented;
         next if $seen{ $type->display_name }++;
         push @failures, "Return type mismatch for $name: returns " . $type->display_name . " ($where), documented as " . join( ' or ', _names_of( \@documented ) );
     }
