@@ -6,7 +6,6 @@ use warnings FATAL => q{all};
 use FindBin;
 use lib "$FindBin::Bin/lib";
 
-use List::Util   qw{any};
 use Scalar::Util qw{reftype};
 use Test::More tests => 18;
 
@@ -49,14 +48,10 @@ ok( $res->{'status'}, "Got correct arg coverage for test module Xenu" );
 is( $res->{'message'}, undef, "No message provided when everything is OK" );
 
 note "Verify arg type coverage is adequate";
-my $case_group;
-foreach my $function_map ( @{ $pc->_get_more_pods->{function_maps} } ) {
-    $case_group = $function_map if any { $_ eq q{test_case_insensitivity_sigs} } @{ $function_map->{all} };
-}
-my %xenu_types = %{ $case_group->{arglist} };
-is( $xenu_types{cat},  q{scalarref}, "A SCALARREF item is not read as SCALAR" );
-is( $xenu_types{goat}, q{arrayref},  "An ARRAYREF item is not read as ARRAY" );
-is( $xenu_types{pig},  q{hashref},   "A hashref item is not read as HASH" );
+my $xenu_types = $pc->_documentation->section_for(q{test_case_insensitivity_sigs})->{types}{test_case_insensitivity_sigs};
+is( $xenu_types->{cat}{word},  q{scalarref}, "A SCALARREF item is not read as SCALAR" );
+is( $xenu_types->{goat}{word}, q{arrayref},  "An ARRAYREF item is not read as ARRAY" );
+is( $xenu_types->{pig}{word},  q{hashref},   "A hashref item is not read as HASH" );
 $res = $pc->coverage_argument_types();
 is( reftype($res), 'HASH', "Coverage arguments types returns hashref" );
 ok( $res->{'status'}, "Got correct arg type coverage for test module Xenu" );
@@ -65,4 +60,4 @@ is( $res->{'message'}, undef, "No message provided when everything is OK" );
 note "Verify return type coverage is adequate";
 $pc  = Pod::Coverage::More->new( package => 'Ret' );
 $res = $pc->coverage_return_types();
-is( reftype( $res->{ret1} ), 'HASH', "Return type coverage gives the analysis of each sub, until the comparison exists" );
+is( reftype($res), 'HASH', "Return type coverage returns a hashref" );

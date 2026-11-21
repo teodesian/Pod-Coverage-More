@@ -19,6 +19,7 @@ subtest type_of_value => sub {
     is( name_of( type_of_value( { type => 'number', value => -5 } ) ),    'Int',               "so is a negative one" );
     is( name_of( type_of_value( { type => 'number', value => 2.5 } ) ),   'Num',               "a fraction is a Num" );
     is( name_of( type_of_value( { type => 'number' } ) ),                 'Num',               "a number of unknown value is a Num" );
+    is( name_of( type_of_value( { type => 'number', integer => 1 } ) ),   'Int',               "a number that is whole by its op is an Int" );
     is( name_of( type_of_value( { type => 'string', value => 'x' } ) ),   'Str',               "a string is a Str" );
     is( name_of( type_of_value( { type => 'boolean' } ) ),                'Bool',              "a comparison is a Bool" );
     is( name_of( type_of_value( { type => 'empty' } ) ),                  'Undef',             "an empty return is undef to a caller that wants one value" );

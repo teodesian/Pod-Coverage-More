@@ -7,67 +7,105 @@ use 5.036;
 use warnings FATAL => q{all};
 use re q{/xsaa};
 
-use Pod::Find    qw(pod_where);
-use Clone        qw{clone};
-use List::Util   qw{any none};
-use Scalar::Util qw{reftype};
+use List::Util qw{any none};
+use Package::Stash;
+use Pod::Find       qw(pod_where);
+use Types::Standard qw{Any ArrayRef CodeRef GlobRef HashRef ScalarRef Str};
 
 use parent 'Pod::Coverage';
 
-use Pod::Coverage::Extractor::More;
 use Pod::Coverage::More::Analyzer;
+use Pod::Coverage::More::Documentation;
 
 # Set to print what the parse and the coverage found, for debugging.
 our $TRACE_ALL = 0;
-
-=head1 DESCRIPTION
-
-Extends Pod::Coverage to handle more things, like whether you are specifying args for your subroutines and whether that matches up with the subroutine's use of @_.
-
-Will also optionally check that you describe your arguments (name them sometime before the next sub is mentioned), and optionally check whether you list it's expected type(s).
-
-Also checks for a description of the return value(s) and it's expected type(s).
-
-Also checks for descriptions of the function possibly causing termination incidents (croak/die,etc).
-
-Also can check for examples in your POD.
-
-For multiple functions described on one line, you can separate them with commas or spaces.  But for arguments, you must use commas; wouldn't want to confuse the copypasters out there.
 
 =head1 SYNOPSIS
 
    use Pod::Coverage::More;
 
-   my $pc    = Pod::Coverage::More->new(package => 'Quux');
-   my $acov  = $pc->coverage_arguments();
-   my $atcov = $pc->coverage_argument_types();
+   my $pc     = Pod::Coverage::More->new( package => 'Pod::Coverage::More' );
+   my $report = $pc->coverage_report;
+   my $acov   = $pc->coverage_arguments;
+   print $acov->{message} if !$acov->{status};
 
+=head1 DESCRIPTION
+
+Extends L<Pod::Coverage>, which makes sure that the POD names each public sub of a module,
+to make sure that the POD also says what each sub takes, returns, and how it fails.
+It compares what L<Pod::Coverage::More::Documentation> reads from the POD
+with what L<Pod::Coverage::More::Analyzer> reads from the compiled subs,
+and the types that they name as L<Type::Tiny> constraints.
+
+L<Test::Pod::Coverage::More> runs these checks as tests.
+
+=head1 WRITING THE POD
+
+A heading names the subs that its section documents, each with an optional argument list,
+and an C<=item> per argument gives its type.  L<Pod::Coverage::More::Documentation> describes the forms in full.
+
+    =head2 resize($width, $height)
+
+    =over 4
+
+    =item width - Int - in pixels
+
+    =item height - Int - in pixels
+
+    =back
+
+    Returns a Image object.  Dies when either size is not positive.
+
+        my $smaller = $image->resize( 100, 50 );
+
+For several functions on one line, separate them with commas or spaces; for arguments, use commas.
+An argument list can give the sigils of the arguments, as C<($foo, @bar, \%baz)>.
+Then the sigils are compared with those of the parameters, and no C<=item> is needed.
+
+=head1 THE CHECKS
+
+Each check applies to the public subs that have a section in the POD.
+A sub without one is the business of C<coverage>.
+
+=over 4
+
+=item B<arguments> - each argument that the POD names is a parameter of the sub: a variable assigned from C<@_>,
+a parameter of a signature, a key of a hash of named arguments, or a parameter that a class builder or a signature module declares
+
+=item B<argument_types> - each argument has a documented type that agrees with the code.  A documented type must be the type that
+the code declares or a narrower one, so that the POD never promises that the sub takes what it refuses.
+A type that the code only implies by its use of the argument fails only when it contradicts the documented one,
+as a hash reference where the code uses an array reference.
+
+=item B<returns> - a sub that returns a value says so with a C<Returns> paragraph or an C<=item Returns>,
+and the documented types cover every type that the code returns or declares
+
+=item B<termination> - a sub that can die, croak, confess, throw or exit, outside an C<eval> or C<try>, says so
+
+=item B<examples> - the section has a verbatim paragraph that calls the sub, by C<name(> or C<< ->name >>
+
+=back
+
+=cut
+
+our @CHECKS = qw{arguments argument_types returns termination examples};
 
 =head1 OVERRIDDEN METHODS
 
 =head2 coverage
 
-Should do the same thing as Pod::Coverage, but with a slightly more complex algorithm for getting arguments, et cetera.
-Much like Pod::Coverage, it supports multiple functions being described per line.
-
-You should use this if you want to have the rest of the functions here work too, as it has a significant caveat.
-
-=head3 CAVEAT:
-
-item commands are parsed as arguments to subroutines, not as subroutine entries.  This makes strategy 1) in coverage_argument_types possible.
-It makes sense to me, given arguments are I<items> in I<lists>.
+Returns the fraction of the public subs that the POD documents, as L<Pod::Coverage> does,
+from the headings that L<Pod::Coverage::More::Documentation> reads.
 
 =cut
 
 sub coverage {
     my $self = shift;
 
-    my $package  = $self->{package};
-    my $pod_info = $self->_get_more_pods;
-
-    _trace_dump($pod_info);
-
-    return unless $pod_info;
+    my $package = $self->{package};
+    my $doc     = $self->_documentation;
+    _trace_dump($doc);
+    return unless $doc;
 
     my %symbols = map { $_ => 0 } $self->_get_syms($package);
 
@@ -78,18 +116,15 @@ sub coverage {
     }
 
     print "tying shoelaces\n" if $TRACE_ALL;
-    my @pods = @{ $pod_info->{'identifiers'} || [] };
-    for my $pod (@pods) {
+    foreach my $pod ( $doc->identifiers ) {
         $symbols{$pod} = 1 if exists $symbols{$pod};
     }
-
     foreach my $sym ( keys %symbols ) {
         $symbols{$sym} = 1 if $self->_trustme_check($sym);
     }
 
     # stash the results for later
     $self->{symbols} = \%symbols;
-
     _trace_dump($self);
 
     my $symbols    = scalar keys %symbols;
@@ -103,219 +138,251 @@ sub coverage {
 
 =head1 METHODS
 
-=head2 coverage_arguments
+=head2 coverage_report
 
-Looks for arguments to your functions described.  In general, valid barewords or variable names inside of parens following a function name is expected.
-Uses L<Pod::Coverage::More::Analyzer> to check that the names are parameters of your subroutine:
-variables assigned from @_ or a shift of it, signature parameters, or the keys read from a hash or hashref parameter of named arguments.
-Names are not case sensitive, and will attempt to obey declared sigils (see 1. in coverage_argument_types).
+Returns a HASHREF from the name of each public sub that has a section in the POD to a HASHREF with C<section>,
+the section that C<section_for> of L<Pod::Coverage::More::Documentation> returns, and C<failures>,
+a HASHREF from the name of each check in THE CHECKS to an ARRAYREF of the messages of its failures, empty when it passes.
 
-TODO add compatibility for Function::Parameters and other CPAN signature modules.
+Returns nothing when there is no POD to rate, and C<why_unrated> says why.
 
 =cut
 
-sub coverage_arguments {
+sub coverage_report {
     my $self = shift;
+    return $self->{report} if $self->{report};
+    my $doc      = $self->_documentation or return;
+    my $analysis = $self->_analysis;
 
-    my $pod_info = $self->_get_more_pods;
-    $self->_extract_function_information;
-    my $fail_msg;
-
-    foreach my $subrow ( @{ $pod_info->{'function_maps'} || [] } ) {
-        $self->_fill_sub_vars( $subrow, 1 );
-
-        #Loop over declared functions/args and check against the analysis
-        foreach my $fun_with_args ( keys( %{ $subrow->{'args'} } ) ) {
-            my @funargs    = map { _bare_name($_) } @{ $subrow->{'args'}->{$fun_with_args} };
-            my @peekedargs = map { _bare_name($_) } @{ $subrow->{'sub_vars'}->{$fun_with_args} };
-
-            foreach my $funarg (@funargs) {
-                if ( none { $_ eq $funarg } @peekedargs ) {
-                    $fail_msg .= "Var Mismatch for function $fun_with_args: $funarg not in @peekedargs\n";
-                }
-            }
+    my %report;
+    foreach my $name ( sort $self->_get_syms( $self->{package} ) ) {
+        my $section = $doc->section_for($name) or next;
+        my $rec     = $analysis->{$name}       or next;
+        my %failures;
+        foreach my $check (@CHECKS) {
+            my $method = "_check_$check";
+            $failures{$check} = [ $self->$method( $name, $section, $rec ) ];
         }
-
+        $report{$name} = { section => $section, failures => \%failures };
     }
-    return { 'status' => $fail_msg ? 0 : 1, 'message' => $fail_msg };
-
+    return $self->{report} = \%report;
 }
+
+=head2 coverage_arguments
+
+Returns a HASHREF with C<status>, true when the B<arguments> check passes for every sub, and C<message>,
+the messages of its failures, one per line, or undef.  The other methods below return the same for their check.
 
 =head2 coverage_argument_types
 
-Looks for a type to be declared for your arguments described for a particular function.
-
-This can be done one of two ways:
-
-1. Use standard variable notation in your arglist known by coverage_arguments (e.g. do ($foo,@bar,%baz,\$fred,\@wilma,\%barney,\&bam_bam,\*betty) or some variation thereof)
-
-2. Specify the types by name in an =item block somewhere between it and the next detected subroutine(s).  Example:
-
-    =head2 some_sub(ARG1,ARG2)
-
-    does stuff
-
-    ARGUMENTS:
-
-    =over4
-
-    =item B<ARG1> - INTEGER - does something weird
-
-    =item B<ARG2> - HASHREF - does something not so weird
-    ...
-
-As usual, the type and variable name search is case insensitive.
-
-Recognized types:
-
-SCALAR,SCALARREF,ARRAY,ARRAYREF,HASH,HASHREF,CODEREF,TYPEGLOBREF and OBJECT,STRING,INTEGER,FLOAT,BOOLEAN (the latter five and the REFs are aliases to SCALAR when comparing versus the sigil of the parameter)
-
-You can also cheat and say MIXED to skip type checks.  Not the way I'd write a sub, but to each their own.
-
-These two strategies are mutually exclusive; having sigils declared for your argument (strategy 1) will obviate it's search in a following block (strategy 2).
-
-=head3 TODO:
-
-recognize types from Type::Tiny or other MOPs
-
-=head3 Maybe TODO:
-
-Recognize imported namespaces when named as being explicit statements of what type of OBJECT we want an arg to be under vanilla perl
-
-use the usage that L<Pod::Coverage::More::Analyzer> reports (using scalar as if HASHREF, etc...) to infer the data type in vanilla perl?
-
-=head3 Probably Shouldn't TODO:
-
-Infer vanilla types from standard guard clauses (if they exist???) for OBJECT,STRING,INTEGER,FLOAT,BOOLEAN (isa,!looks_like_number,Regexp::Common trickery)
-Make the hammer of shame fall when said guard clauses are not detected
-
-=cut
-
-sub coverage_argument_types {
-    my $self = shift;
-
-    my $pod_info = $self->_get_more_pods;
-    $self->_extract_function_information;
-    my @failures;
-
-    foreach my $subrow ( @{ $pod_info->{'function_maps'} || [] } ) {
-        $self->_fill_sub_vars( $subrow, 0 );
-
-        #Loop over declared functions/args and check against the analysis
-        foreach my $fun_with_args ( keys( %{ $subrow->{'args'} } ) ) {
-            my @funargs          = @{ $subrow->{'args'}->{$fun_with_args} };
-            my @args_with_sigils = grep { m/\A[\$*\\@%&|]/ } @funargs;
-
-            #Replace REF looking args with $ sigils
-            @funargs = map { ( my $subj = $_ ) =~ s/\A\\[\$*@%&|]/\$/; $subj } @funargs;
-            my @peekedargs = @{ clone( $subrow->{'sub_vars'}->{$fun_with_args} ) };
-
-            push @failures,
-              @args_with_sigils
-              ? _sigil_mismatches( $fun_with_args, \@funargs, \@peekedargs )
-              : _item_type_mismatches( $subrow, $fun_with_args, \@funargs, \@peekedargs );
-        }
-
-    }
-    return { 'status' => @failures ? 0 : 1, 'message' => @failures ? join( '', @failures ) : undef };
-
-}
-
-# Strategy 1: the POD wrote each argument with its sigil, so it must match the parameter exactly.
-sub _sigil_mismatches {
-    my ( $fun_with_args, $funargs, $peekedargs ) = @_;
-    my @failures;
-
-    #Should I make a different message if the sigil was omitted for lone args?
-    foreach my $funarg (@$funargs) {
-        if ( none { $_ eq $funarg } @$peekedargs ) {
-            push @failures, "Var Type Mismatch for function $fun_with_args: $funarg not in @$peekedargs\n";
-        }
-    }
-    return @failures;
-}
-
-our %SIGIL_TYPES    = ( '$' => 'scalar', '@' => 'array', '%' => 'hash' );
-our %SCALAR_ALIASES = map { $_ => 1 } qw{scalarref arrayref hashref coderef typeglobref object integer float boolean string};
-
-# Strategy 2: the type of each argument is in an =item of the text blocks that were parsed for this function group.
-sub _item_type_mismatches {
-    my ( $subrow, $fun_with_args, $funargs, $peekedargs ) = @_;
-    my $arglist = $subrow->{'arglist'} || {};
-    my @podargs = keys(%$arglist);
-    my @failures;
-
-    foreach my $funarg (@$funargs) {
-        if ( none { lc($_) eq lc($funarg) } @podargs ) {
-            push @failures, "Var $funarg not documented whatsoever for $fun_with_args!\n";
-        }
-    }
-
-    #Check each parameter's sigil against the type documented for that arg
-    foreach my $peeked_arg (@$peekedargs) {
-        my ( $sigil, $arg_name ) = $peeked_arg =~ m/\A(.)(.+)\z/;
-        next if !defined $sigil;
-        my $peeked_type = $SIGIL_TYPES{$sigil};
-        my $pod_type    = $arglist->{ lc($arg_name) };
-
-        #An arg with no =item has no documented type to compare
-        next if !defined $peeked_type || !defined $pod_type;
-        next if $pod_type eq 'mixed'  || $pod_type eq $peeked_type;
-        next if $peeked_type eq 'scalar' && $SCALAR_ALIASES{$pod_type};
-        push @failures,
-          $pod_type eq ''
-          ? "No type declared for arg $arg_name of $fun_with_args\n"
-          : "Type mismatch for arg $arg_name of $fun_with_args: got $pod_type, expected $peeked_type\n";
-    }
-    return @failures;
-}
+The B<argument_types> check.
 
 =head2 coverage_return_types
 
-Uses L<Pod::Coverage::More::Analyzer> to find out the sort of data your function returns, and then looks for an adequate description in a text block following function definition.
-Acceptable return types are same as accepted for coverage_argument_types.
-
-TODO: the comparison against the POD is not implemented yet.
-For now this returns the analysis of every sub in the package, a HASHREF of the records that C<analyze_sub> of L<Pod::Coverage::More::Analyzer> returns,
-or 0 when the POD names no functions.
-
-=cut
-
-sub coverage_return_types {
-    my $self = shift;
-
-    my $pod_info = $self->_get_more_pods;
-    return 0 if ( reftype( $pod_info->{'function_maps'} ) || 'undef' ) ne "ARRAY";
-    return $self->_extract_function_information;
-}
+The B<returns> check.
 
 =head2 coverage_termination
 
-Not implemented yet: returns the string C<stub>.
-
-It is meant to find the spots where your code explicitly croaks/dies/confesses or otherwise goes down in flames,
-from the C<dies> that L<Pod::Coverage::More::Analyzer> reports,
-and return failure when you do not provide adequate warnings to the user foolish enough to attempt usage of said code.
-
-In general, say the code dies/exits/croaks/confesses on some condition in a text block following function definition and you should be good to go.
-
-=cut
-
-sub coverage_termination {
-    return 'stub';
-}
+The B<termination> check.
 
 =head2 coverage_examples
 
-Not implemented yet: returns the string C<stub>.
-
-It is meant to look through the verbatim blocks following function definition(s) for examples of said functions' (correct) usage.
-Basically runs the signature,type, return type and termination coverage algorithms on said verbatim block.
+The B<examples> check.
 
 =cut
 
-sub coverage_examples {
-    return 'stub';
+sub coverage_arguments      { my ($self) = @_; return $self->_check_result('arguments') }
+sub coverage_argument_types { my ($self) = @_; return $self->_check_result('argument_types') }
+sub coverage_return_types   { my ($self) = @_; return $self->_check_result('returns') }
+sub coverage_termination    { my ($self) = @_; return $self->_check_result('termination') }
+sub coverage_examples       { my ($self) = @_; return $self->_check_result('examples') }
+
+sub _check_result {
+    my ( $self, $check ) = @_;
+    my $report = $self->coverage_report or return { status => 0, message => ( $self->{why_unrated} // 'no POD' ) . "\n" };
+    my @failures;
+    foreach my $name ( sort keys %$report ) {
+        push @failures, @{ $report->{$name}{failures}{$check} };
+    }
+    return { status => @failures ? 0 : 1, message => @failures ? join( q{}, map { "$_\n" } @failures ) : undef };
+}
+
+# The names that a POD argument can match: the parameters, the keys of named arguments, and the declared parameters.
+sub _accepted_names {
+    my ($rec) = @_;
+    my @names;
+    foreach my $param ( @{ $rec->{params} } ) {
+        push @names, $param->{name} if defined $param->{name};
+        push @names, @{ $param->{keys} || [] };
+    }
+    foreach my $param ( @{ $rec->{declared}{params} || [] } ) {
+        push @names, $param->{name}  if defined $param->{name};
+        push @names, $param->{named} if defined $param->{named};
+    }
+    return _bare_names(@names);
+}
+
+sub _check_arguments {
+    my ( $self, $name, $section, $rec ) = @_;
+    my $args     = $section->{args}{$name} or return;
+    my @accepted = _accepted_names($rec);
+    my @failures;
+    foreach my $arg ( _bare_names(@$args) ) {
+        push @failures, "Var Mismatch for function $name: $arg not in @accepted" if none { $_ eq $arg } @accepted;
+    }
+    return @failures;
+}
+
+our %SIGIL_TYPES = ( '$' => 'scalar', '@' => 'array', '%' => 'hash' );
+
+sub _check_argument_types {
+    my ( $self, $name, $section, $rec ) = @_;
+    my $args   = $section->{args}{$name} or return;
+    my @params = grep { defined } map { $_->{name} } @{ $rec->{params} };
+
+    # Strategy 1: the POD wrote each argument with its sigil, so it must match the parameter exactly.
+    if ( any { m/\A[\$*\\@%&|]/ } @$args ) {
+        my @failures;
+        foreach my $arg ( map { s/\A\\[\$*@%&|]/\$/r } @$args ) {
+            push @failures, "Var Type Mismatch for function $name: $arg not in @params" if none { $_ eq $arg } @params;
+        }
+        return @failures;
+    }
+
+    # Strategy 2: the type of each argument is in an =item of its section.
+    my $types = $section->{types}{$name} || {};
+    my @failures;
+    foreach my $arg (@$args) {
+        push @failures, "Var $arg not documented whatsoever for $name!" if !$types->{ Pod::Coverage::More::Documentation->bare_name($arg) };
+    }
+    foreach my $param ( @{ $rec->{params} } ) {
+        next if !defined $param->{name};
+        my ( $sigil, $arg_name ) = $param->{name} =~ m/\A(.)(.+)\z/ or next;
+        my $documented = $types->{ lc $arg_name } or next;
+        push @failures, _type_failures( $name, $arg_name, $SIGIL_TYPES{$sigil}, $documented, $param );
+    }
+    return @failures;
+}
+
+# The failures of the documented type of one parameter: against its sigil, its declared type, and its uses.
+sub _type_failures {
+    my ( $name, $arg_name, $sigil_type, $documented, $param ) = @_;
+    my $word = $documented->{word};
+    return "No type declared for arg $arg_name of $name" if $word eq q{};
+    return                                               if $word eq 'mixed';
+
+    # A word for a container names the kind of the parameter itself, and only a container parameter is one.
+    if ( defined $sigil_type && $word ne $sigil_type && ( $word eq 'array' || $word eq 'hash' || $sigil_type ne 'scalar' ) ) {
+        return "Type mismatch for arg $arg_name of $name: got $word, expected $sigil_type";
+    }
+
+    my $type = $documented->{type} or return;
+    if ( my $declared = $param->{declared} ) {
+        return if $type->equals($declared) || $type->is_subtype_of($declared);
+        return "Type mismatch for arg $arg_name of $name: documented " . $type->display_name . ", but $param->{declared_by} declares " . $declared->display_name;
+    }
+    if ( my $inferred = $param->{inferred} ) {
+        return "Type mismatch for arg $arg_name of $name: documented " . $type->display_name . ', but the code uses it as ' . $inferred->display_name
+          if _contradicts( $type, $inferred );
+    }
+    return;
+}
+
+# The kinds of value that no type of another kind can be.
+our @KINDS = ( HashRef, ArrayRef, CodeRef, ScalarRef, GlobRef, Str );
+
+sub _kinds_of {
+    my ($type) = @_;
+    my @members = $type->can('type_constraints') ? @{ $type->type_constraints } : ($type);
+    my %kinds;
+    foreach my $member (@members) {
+        foreach my $kind (@KINDS) {
+            $kinds{ $kind->name } = 1 if $member->is_a_type_of($kind);
+        }
+    }
+    return \%kinds;
+}
+
+# Whether a documented type and a type that the code implies are of different kinds, as a hash reference and an array reference.
+sub _contradicts {
+    my ( $documented, $inferred ) = @_;
+    my $documented_kinds = _kinds_of($documented);
+    my $inferred_kinds   = _kinds_of($inferred);
+    return 0 if !%$documented_kinds || !%$inferred_kinds;
+    return ( none { $inferred_kinds->{$_} } keys %$documented_kinds ) ? 1 : 0;
+}
+
+sub _check_returns {
+    my ( $self, $name, $section, $rec ) = @_;
+    my @returned = grep { $_->{type} ne 'empty' } @{ $rec->{returns} };
+    my @declared = @{ $rec->{declared}{returns} || [] };
+    return if !@returned && !@declared;
+
+    my @statements = @{ $section->{returns} };
+    return "No return value documented for $name" if !@statements;
+    my @documented = map { @{ $_->{types} } } @statements;
+    if ( !@documented ) {
+        return "$name is documented to return nothing, but it returns a value" if _all_nothing(@statements);
+        return;
+    }
+
+    my @failures;
+    my %seen;
+    my @checked = ( ( map { [ $_->{constraint}, "line $_->{line}" ] } grep { $_->{constraint} } @returned ), ( map { [ $_, 'declared' ] } @declared ) );
+    foreach my $returned (@checked) {
+        my ( $type, $where ) = @$returned;
+        next if _covered( $type, \@documented );
+        next if $seen{ $type->display_name }++;
+        push @failures, "Return type mismatch for $name: returns " . $type->display_name . " ($where), documented as " . join( ' or ', _names_of( \@documented ) );
+    }
+    return @failures;
+}
+
+# Whether the statements of the return value only say that it returns nothing.
+sub _all_nothing {
+    my (@statements) = @_;
+    return ( any { $_->{nothing} } @statements ) && ( none { @{ $_->{types} } } @statements );
+}
+
+sub _covered {
+    my ( $type, $documented ) = @_;
+    foreach my $candidate (@$documented) {
+        return 1 if $candidate->equals(Any) || $type->equals($candidate) || $type->is_subtype_of($candidate);
+    }
+    return 0;
+}
+
+# The names of NAMES without sigils, in lower case, as the POD and the code are compared.
+sub _bare_names {
+    my (@names) = @_;
+    my @bare;
+    foreach my $name (@names) {
+        push @bare, Pod::Coverage::More::Documentation->bare_name($name);
+    }
+    return @bare;
+}
+
+# The display names of the constraints in the ARRAYREF TYPES.
+sub _names_of {
+    my ($types) = @_;
+    my @names;
+    foreach my $type (@$types) {
+        push @names, $type->display_name;
+    }
+    return @names;
+}
+
+sub _check_termination {
+    my ( $self, $name, $section, $rec ) = @_;
+    my @uncaught = grep { !$_->{caught} } @{ $rec->{dies} };
+    return if !@uncaught || @{ $section->{terminations} };
+    return "$name can terminate ($uncaught[0]{via} at line $uncaught[0]{line}), but its POD does not say so";
+}
+
+sub _check_examples {
+    my ( $self, $name, $section ) = @_;
+    return if any { m/\b\Q$name\E\s*\(|->\s*\Q$name\E\b/ } @{ $section->{verbatim} };
+    return "No example of $name in its POD";
 }
 
 sub _trace_dump {
@@ -326,36 +393,13 @@ sub _trace_dump {
     return;
 }
 
-# An argument name without its sigils, in lower case, as the POD and the parameters are compared.
-sub _bare_name {
-    my ($name) = @_;
-    $name =~ tr/$*\\@%&|//d;
-    return lc($name);
-}
-
-# Records, for each function of the heading SUBROW, the names of its parameters,
-# and also the keys of its named arguments when WITH_NAMED_KEYS is true.
-sub _fill_sub_vars {
-    my ( $self, $subrow, $with_named_keys ) = @_;
-    $subrow->{'sub_vars'} = {} if !exists( $subrow->{'sub_vars'} );
-    foreach my $function ( @{ $subrow->{'all'} } ) {
-        my @vars = @{ $self->_sub_args($function) };
-        push @vars, @{ $self->_sub_named_keys($function) } if $with_named_keys;
-        $subrow->{'sub_vars'}->{$function} = \@vars;
-    }
-    return;
-}
-
-sub _get_more_pods {
+sub _documentation {
     my $self = shift;
+    return $self->{documentation} if $self->{documentation};
 
     my $package = $self->{package};
-    $self->{'last_package'} = $package;    #Track this so we can optimize by not calling the extractor twice for the same file
-    return $self->{'last_pod'} if ( $self->{'last_package'} eq $self->{'package'} ) && $self->{'last_pod'};
-
     print "getting pod location for '$package'\n" if $TRACE_ALL;
     $self->{pod_from} ||= pod_where( { -inc => 1 }, $package );
-
     my $pod_from = $self->{pod_from};
     unless ($pod_from) {
         $self->{why_unrated} = "couldn't find pod";
@@ -363,33 +407,14 @@ sub _get_more_pods {
     }
 
     print "parsing '$pod_from'\n" if $TRACE_ALL;
-    my $pod = Pod::Coverage::Extractor::More->new;
-    $pod->{nonwhitespace} = $self->{nonwhitespace};
-    $pod->parse_from_file( $pod_from, '/dev/null' );
-
-    $self->{'last_pod'} = $pod;
-    return $pod || {};
+    my @subs = Package::Stash->new($package)->list_all_symbols('CODE');
+    return $self->{documentation} = Pod::Coverage::More::Documentation->new( subs => \@subs )->parse_file($pod_from);
 }
 
 # Analyze every sub of the package once, from its compiled op tree.
-sub _extract_function_information {
+sub _analysis {
     my $self = shift;
-    return $self->{'sub_parse'} //= Pod::Coverage::More::Analyzer->new->analyze_package( $self->{'package'} );
-}
-
-#Convenience methods to grab bits from the analysis of one sub.
-#A function the POD names but the package does not define has no record, and so no parameters.
-sub _sub_args {
-    my ( $self, $sub ) = @_;
-    my $rec = $self->{'sub_parse'}->{$sub} or return [];
-    return [ grep { defined } map { $_->{'name'} } @{ $rec->{'params'} } ];
-}
-
-#Keys read from a parameter of named arguments, such as %opts in my %opts = @_.
-sub _sub_named_keys {
-    my ( $self, $sub ) = @_;
-    my $rec = $self->{'sub_parse'}->{$sub} or return [];
-    return [ map { @{ $_->{'keys'} || [] } } @{ $rec->{'params'} } ];
+    return $self->{analysis} //= Pod::Coverage::More::Analyzer->new->analyze_package( $self->{package} );
 }
 
 1;
@@ -399,6 +424,8 @@ __END__
 
 L<Pod::Coverage>
 
-L<Pod::Coverage::Extractor::More>
+L<Pod::Coverage::More::Documentation>
 
 L<Pod::Coverage::More::Analyzer>
+
+L<Test::Pod::Coverage::More>

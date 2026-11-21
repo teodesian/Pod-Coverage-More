@@ -90,6 +90,12 @@ our %BOOLEAN_OPS = map { $_ => 1 } qw{
   lt gt le ge eq ne i_lt i_gt i_le i_ge i_eq i_ne
   slt sgt sle sge seq sne
 };
+
+# The ops whose result is always a whole number.
+our %INTEGER_OPS = map { $_ => 1 } qw{
+  int length index rindex ncmp scmp time
+  i_add i_subtract i_multiply i_divide i_modulo i_negate i_ncmp
+};
 our %NUMBER_OPS = map { $_ => 1 } qw{
   add subtract multiply divide modulo pow negate abs int sqrt ncmp scmp
   i_add i_subtract i_multiply i_divide i_modulo i_negate i_ncmp
@@ -469,7 +475,7 @@ sub classify {
         my ($kid) = _significant_kids($op);
         return { type => 'unknown', op => $name } if !$kid;
         my $kname = _unwrap($kid)->name;
-        return { type => 'number' } if $kname eq 'padav' || $kname eq 'rv2av';
+        return { type => 'number', integer => 1 } if $kname eq 'padav' || $kname eq 'rv2av';
         return $self->classify($kid);
     }
     if ( $name eq 'padsv' || $name eq 'padav' || $name eq 'padhv' ) {
@@ -502,10 +508,11 @@ sub classify {
         my ($target) = $self->_call_target($op);
         return $target // { type => 'call' };
     }
-    return { type => 'boolean' } if $BOOLEAN_OPS{$name};
-    return { type => 'number' }  if $NUMBER_OPS{$name};
-    return { type => 'string' }  if $STRING_RESULT_OPS{$name};
-    return { type => 'list' }    if $LIST_OPS{$name};
+    return { type => 'boolean' }              if $BOOLEAN_OPS{$name};
+    return { type => 'number', integer => 1 } if $INTEGER_OPS{$name};
+    return { type => 'number' }               if $NUMBER_OPS{$name};
+    return { type => 'string' }               if $STRING_RESULT_OPS{$name};
+    return { type => 'list' }                 if $LIST_OPS{$name};
     return { type => 'unknown', op => $name };
 }
 

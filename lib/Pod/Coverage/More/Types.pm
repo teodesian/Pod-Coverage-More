@@ -36,6 +36,7 @@ Each function returns undef when the evidence says nothing about the type.
 =head2 type_of_value(EVIDENCE)
 
 Returns the constraint that a value satisfies, from one HASHREF of evidence that C<classify> of L<Pod::Coverage::More::Analyzer> returns.
+A number whose evidence has a true C<integer>, such as the count of an array, is an C<Int>.
 
 =cut
 
@@ -45,6 +46,7 @@ sub type_of_value {
 
     if ( $type eq 'number' ) {
         my $value = $evidence->{value};
+        return Int if $evidence->{integer};
         return ( defined $value && $value =~ m/\A-?\d+\z/ ) ? Int : Num;
     }
     return Str  if $type eq 'string';
