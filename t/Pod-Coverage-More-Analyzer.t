@@ -35,6 +35,16 @@ sub returns_of {
     ];
 }
 
+# The names of the constraints under KEY of each record of ITEMS, with a dash where there is none.
+sub constraint_names {
+    my ( $items, $key ) = @_;
+    my @names;
+    foreach my $item (@$items) {
+        push @names, $item->{$key} ? $item->{$key}->display_name : q{-};
+    }
+    return \@names;
+}
+
 subtest backend_for => sub {
     like( dies { Pod::Coverage::More::Analyzer::backend_for(5.034) },    qr/not[ ]supported/, "5.34 is older than the oldest version set" );
     like( dies { Pod::Coverage::More::Analyzer::backend_for(5.035999) }, qr/not[ ]supported/, "the last 5.35 is still older than the oldest version set" );
@@ -161,6 +171,18 @@ subtest signature_defaults_5_38 => sub {
     );
     is( $signed->{defaults}{params}[1]{default}{value}, [ { type => 'string', value => 'z' } ], "the value of a //= default" );
     is( $signed->{defaults}{params}[2]{default}{value}, [ { type => 'arrayref' } ],             "the value of a ||= default" );
+};
+
+subtest constraints => sub {
+    my @params = @{ $subs->{uses}{params} };
+    my %inferred;
+    @inferred{ map { $_->{name} } @params } = @{ constraint_names( \@params, q{inferred} ) };
+    is( \%inferred,                                                   { q{$num} => q{Num}, q{$str} => q{Str}, q{$code} => q{CodeRef}, q{$obj} => q{HasMethods["render"]} }, "each parameter has the constraint that its uses amount to" );
+    is( $subs->{hashref_arg}{params}[1]{inferred}->display_name,      q{HashRef},                                                                                           "a parameter dereferenced as a hash is a HashRef" );
+    is( constraint_names( $subs->{ternary}{returns}, q{constraint} ), [qw{ArrayRef Undef}],                                                                                 "each value a sub returns has its constraint" );
+    is( $subs->{fixed_class}{returns}[0]{constraint}->display_name,   q{InstanceOf["Some::Class"]},                                                                         "an object of a literal class is an instance of it" );
+    is( $subs->{LIMIT}{returns}[0]{constraint}->display_name,         q{Int},                                                                                               "so does the value of a constant" );
+    ok( !defined $subs->{shifted}{returns}[0]{constraint}, "a returned variable has no constraint by itself" );
 };
 
 subtest generated => sub {

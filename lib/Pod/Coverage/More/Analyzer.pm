@@ -12,6 +12,8 @@ use List::Util      qw{any};
 use Module::Runtime qw{require_module module_notional_filename};
 use Package::Stash;
 
+use Pod::Coverage::More::Types qw{type_of_value type_of_usage};
+
 # The pad and SV helpers return an explicit undef because their callers put them in hash constructors,
 # where a bare return would give an empty list and shift every pair after it.
 
@@ -179,11 +181,13 @@ or was compiled in a file other than the one that PACKAGE was loaded from, as an
 
 =item B<method> - BOOLEAN - true for a C<method> of the core class feature, whose parameter 0 is the implicit C<$self>
 
-=item B<params> - ARRAYREF - one HASHREF per parameter, in order: C<name> (undef when it has none), C<index>, C<source> (C<shift>, C<list>, C<element>, C<signature> or C<invocant>), C<slurpy>, C<optional>, C<default> and C<keys>
+=item B<params> - ARRAYREF - one HASHREF per parameter, in order: C<name> (undef when it has none), C<index>, C<source> (C<shift>, C<list>, C<element>, C<signature> or C<invocant>), C<slurpy>, C<optional>, C<default>, C<keys>,
+and C<inferred>, the L<Type::Tiny> constraint that the uses of the parameter in the body amount to, or undef
 
 =item B<usage> - HASHREF - per lexical variable, how the body uses it: C<hashref>, C<arrayref>, C<coderef>, C<numeric>, C<string>, C<methods> and C<keys>
 
-=item B<returns> - ARRAYREF - one HASHREF per value the sub can return, with C<type>, C<line> and C<implicit>, plus details per type
+=item B<returns> - ARRAYREF - one HASHREF per value the sub can return, with C<type>, C<line> and C<implicit>,
+C<constraint>, the L<Type::Tiny> constraint that the value satisfies when the evidence says, plus details per type
 
 =item B<dies> - ARRAYREF - one HASHREF per explicit termination, with C<via>, C<line> and C<caught>
 
@@ -210,7 +214,8 @@ sub analyze_sub {
     if ( $cv->CvFLAGS & B::CVf_CONST ) {
         $rec{kind}  = 'constant';
         $rec{value} = $code->();
-        push @{ $rec{returns} }, _sv_evidence( B::svref_2object( \$rec{value} ) );
+        my $returned = _sv_evidence( B::svref_2object( \$rec{value} ) );
+        push @{ $rec{returns} }, { %$returned, constraint => type_of_value($returned) };
         return \%rec;
     }
     if ( $cv->XSUB ) {
@@ -238,11 +243,15 @@ sub analyze_sub {
     push @{ $rec{returns} }, map { +{ %$_, implicit => 1 } } $walker->_implicit_returns( $cv->ROOT );
     $walker->finish_sub( \%rec );
 
+    foreach my $returned ( @{ $rec{returns} } ) {
+        $returned->{constraint} = type_of_value($returned);
+    }
     @{ $rec{params} } = sort { $a->{index} <=> $b->{index} } @{ $rec{params} };
     foreach my $param ( @{ $rec{params} } ) {
         next unless defined $param->{name};
         my $keys = $rec{usage}{ $param->{name} }{keys};
-        $param->{keys} = [@$keys] if $keys;
+        $param->{keys}     = [@$keys] if $keys;
+        $param->{inferred} = type_of_usage( $rec{usage}{ $param->{name} } || {} );
     }
     return \%rec;
 }
