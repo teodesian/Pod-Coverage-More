@@ -36,7 +36,7 @@ if you raise or lower the floor, change the profile as well as the `use` lines.
 |---|---|
 | `perldoc Pod::Coverage::More` | what this is for and how a caller uses it |
 | `perldoc Pod::Coverage::More::Analyzer` | what the op tree analysis reports, and which perl versions it supports |
-| `lib/Pod/Coverage/More/Analyzer/v5_*.pm` | the ops of each version set of perl, one module per set |
+| `lib/Pod/Coverage/More/Analyzer/Perl5_*.pm` | the ops of each version set of perl, one module per set |
 | `t/Analyzed.pm`, `t/Signed.pm` | the fixtures that state what the analysis must report for each idiom |
 | `.perlcriticrc` | the policies, which are the house style made enforceable |
 | `Changes` | what changed and when, per release |

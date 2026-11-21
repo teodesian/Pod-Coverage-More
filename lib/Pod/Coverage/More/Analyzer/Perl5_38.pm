@@ -1,21 +1,18 @@
 # ABSTRACT: Op tree analysis for perl 5.38 to 5.42
-# PODNAME: Pod::Coverage::More::Analyzer::v5_38
+# PODNAME: Pod::Coverage::More::Analyzer::Perl5_38
 
-package Pod::Coverage::More::Analyzer::v5_38;
+package Pod::Coverage::More::Analyzer::Perl5_38;
 
-use strict;
-use warnings;
+use 5.036;
+use warnings FATAL => q{all};
 
 use B ();
 
-use parent 'Pod::Coverage::More::Analyzer::v5_36';
-
-# Op flags are bit fields, so reading them takes bitwise operators.
-## no critic (ProhibitBitwiseOperators)
+use parent 'Pod::Coverage::More::Analyzer::Perl5_36';
 
 =head1 DESCRIPTION
 
-Signatures compile as they do in 5.36, see L<Pod::Coverage::More::Analyzer::v5_36>.
+Signatures compile as they do in 5.36, see L<Pod::Coverage::More::Analyzer::Perl5_36>.
 It adds the C<//=> and C<||=> defaults of signature parameters, which the private flags of C<argdefelem> mark,
 and two ops that 5.36 does not have:
 
@@ -54,19 +51,19 @@ sub default_mode {
     return '=';
 }
 
-# my $x = shift;
+# The assignment of one value to a lexical scalar, whose target is the op's own pad entry.
 sub _on_padsv_store {
     my ( $self, $op ) = @_;
-    my ($value) = Pod::Coverage::More::Analyzer::_kids($op);
+    my ($value) = $self->op_kids($op);
     return unless $value;
     $self->_assign_from_args( $value, $self->_padname( $op->targ ) );
     return;
 }
 
-# return my $x = EXPR;  is the value of EXPR.
+# The value of an assignment is the value assigned.
 sub _classify_padsv_store {
     my ( $self, $op ) = @_;
-    my ($value) = Pod::Coverage::More::Analyzer::_kids($op);
+    my ($value) = $self->op_kids($op);
     return { type => 'unknown', op => 'padsv_store' } if !$value;
     return $self->classify($value);
 }

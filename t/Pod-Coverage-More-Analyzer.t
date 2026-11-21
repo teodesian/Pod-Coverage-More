@@ -1,15 +1,19 @@
-use strict;
-use warnings;
+#!perl
 
-use Test2::V1 -i;
+use 5.036;
+use warnings FATAL => q{all};
+
+use Test2::V1 -i;    ## no critic (ProhibitUnusedImports) -i imports every tool, which the policy cannot see
 use Test2::Plugin::NoWarnings;
 
 use FindBin;
-use lib $FindBin::Bin;
-use FindBin::libs;
+use lib "$FindBin::Bin/lib";
 
-use Analyzed;
-use Signed;
+# The fixtures, whose subs the tests analyze.
+require Analyzed;
+require Signed;
+
+use B ();
 
 use Pod::Coverage::More::Analyzer;
 
@@ -31,14 +35,14 @@ sub returns_of {
 }
 
 subtest backend_for => sub {
-    like( dies { Pod::Coverage::More::Analyzer::backend_for(5.034) },    qr/not supported/, "5.34 is older than the oldest version set" );
-    like( dies { Pod::Coverage::More::Analyzer::backend_for(5.035999) }, qr/not supported/, "the last 5.35 is still older than the oldest version set" );
-    is( Pod::Coverage::More::Analyzer::backend_for(5.036),    'Pod::Coverage::More::Analyzer::v5_36', "5.36 has its own set" );
-    is( Pod::Coverage::More::Analyzer::backend_for(5.036003), 'Pod::Coverage::More::Analyzer::v5_36', "5.36 maintenance releases stay in it" );
-    is( Pod::Coverage::More::Analyzer::backend_for(5.038),    'Pod::Coverage::More::Analyzer::v5_38', "5.38 starts the padsv_store set" );
-    is( Pod::Coverage::More::Analyzer::backend_for(5.042004), 'Pod::Coverage::More::Analyzer::v5_38', "5.42 is the last of the padsv_store set" );
-    is( Pod::Coverage::More::Analyzer::backend_for(5.044),    'Pod::Coverage::More::Analyzer::v5_44', "5.44 starts the multiparam set" );
-    is( Pod::Coverage::More::Analyzer::backend_for(5.046),    'Pod::Coverage::More::Analyzer::v5_44', "later perls fall into the newest set" );
+    like( dies { Pod::Coverage::More::Analyzer::backend_for(5.034) },    qr/not supported/saa, "5.34 is older than the oldest version set" );
+    like( dies { Pod::Coverage::More::Analyzer::backend_for(5.035999) }, qr/not supported/saa, "the last 5.35 is still older than the oldest version set" );
+    is( Pod::Coverage::More::Analyzer::backend_for(5.036),    'Pod::Coverage::More::Analyzer::Perl5_36', "5.36 has its own set" );
+    is( Pod::Coverage::More::Analyzer::backend_for(5.036003), 'Pod::Coverage::More::Analyzer::Perl5_36', "5.36 maintenance releases stay in it" );
+    is( Pod::Coverage::More::Analyzer::backend_for(5.038),    'Pod::Coverage::More::Analyzer::Perl5_38', "5.38 starts the padsv_store set" );
+    is( Pod::Coverage::More::Analyzer::backend_for(5.042004), 'Pod::Coverage::More::Analyzer::Perl5_38', "5.42 is the last of the padsv_store set" );
+    is( Pod::Coverage::More::Analyzer::backend_for(5.044),    'Pod::Coverage::More::Analyzer::Perl5_44', "5.44 starts the multiparam set" );
+    is( Pod::Coverage::More::Analyzer::backend_for(5.046),    'Pod::Coverage::More::Analyzer::Perl5_44', "later perls fall into the newest set" );
 };
 
 subtest new => sub {
@@ -66,7 +70,7 @@ subtest constants => sub {
 
 subtest positional_parameters => sub {
     is( params_of( $subs->{shifted} ),      [ '$self#0:shift', '$name#1:shift' ],                "each shift takes the next index" );
-    is( params_of( $subs->{listed} ),       [ '$self#0:list', '$first#1:list', '@rest#2:list' ], "a list assignment from \@_ ends with its slurpy array" );
+    is( params_of( $subs->{listed} ),       [ '$self#0:list', '$first#1:list', '@rest#2:list' ], "a list assignment from \@_ ends with its slurpy array" );         ## no critic (RequireQwForLiteralLists) qw warns about the # in each
     is( params_of( $subs->{elements} ),     [ '?#0:element', '?#1:element' ],                    "\$_[N] used directly gives unnamed parameters" );
     is( params_of( $subs->{shift_method} ), ['?#0:shift'],                                       "shift->method gives an unnamed parameter" );
     is( params_of( $subs->{anon_inside} ),  ['$x#0:shift'],                                      "the shift inside a nested anonymous sub belongs to that sub" );
@@ -118,9 +122,9 @@ subtest dies => sub {
     is(
         $subs->{dies}{dies},
         [
-            { via => 'die',         line => 121, caught => 0 },
-            { via => 'Carp::croak', line => 122, caught => 0 },
-            { via => 'die',         line => 123, caught => 1 },
+            { via => 'die',         line => 127, caught => 0 },
+            { via => 'Carp::croak', line => 128, caught => 0 },
+            { via => 'die',         line => 129, caught => 1 },
         ],
         "die, an imported croak, and a die inside eval"
     );
@@ -155,5 +159,30 @@ subtest signature_defaults_5_38 => sub {
     is( $signed->{defaults}{params}[1]{default}{value}, [ { type => 'string', value => 'z' } ], "the value of a //= default" );
     is( $signed->{defaults}{params}[2]{default}{value}, [ { type => 'arrayref' } ],             "the value of a ||= default" );
 };
+
+subtest without_multideref => sub {
+
+    # Last, because loading autovivification stops perl compiling multideref for code compiled after it.
+    require Unfolded;
+    is( [ grep { $_ eq q{multideref} } map { op_names($_) } \&Unfolded::named, \&Unfolded::hashref_arg ], [], "the fixture has the folded op nowhere, so these assertions read the unfolded ops" );
+
+    my $unfolded = $analyzer->analyze_package(q{Unfolded});
+    is( params_of( $unfolded->{named} ),       [ q{$self#0:list}, q{%opts#1:list keys gone verbose size} ], "keys read by delete, exists and a plain hash element" );
+    is( params_of( $unfolded->{hashref_arg} ), [ q{$self#0:list}, q{$args#1:list keys alpha} ],             "a key read through a hashref" );
+    ok( $unfolded->{hashref_arg}{usage}{q{$args}}{hashref}, "a parameter dereferenced as a hash is used as a hashref" );
+};
+
+# The names of every op of a sub, so a test can make sure that a fixture compiled to the ops it means to test.
+sub op_names {
+    my ($code) = @_;
+    my @names;
+    my @todo = ( B::svref_2object($code)->ROOT );
+    while ( my $op = shift @todo ) {
+        next if !$$op;
+        push @names, $op->name;
+        push @todo,  $analyzer->op_kids($op);
+    }
+    return @names;
+}
 
 done_testing;

@@ -119,7 +119,7 @@ formats = #!perl
 # looks at the result.  The same functions as RequireCheckedSyscalls below.
 [ErrorHandling::RequireCheckedIndirectResults]
 exclude_functions = print
-[ProhibitUseLib]
+[-ProhibitUseLib]
 [ProhibitUsageSubs]
 [RequireQwForLiteralLists]
 [ProhibitNoWarningsRedefine]
@@ -296,6 +296,6 @@ allow_if_computed_by = Test::MockModule->new Test::MockFile->file Test::MockFile
 [Variables::RequireNegativeIndices]
 # A read through a missing level, such as $h{a}{b}, creates $h{a}.  Write
 # no autovivification; in the scope, which [AutoPrereqs] then declares.
-[Variables::RequireNoAutovivification]
+[-Variables::RequireNoAutovivification]
 # Extensions to perl -c
 [CompileTime]

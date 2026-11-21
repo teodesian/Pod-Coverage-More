@@ -3,22 +3,22 @@
 
 package Pod::Coverage::More::Analyzer;
 
-use strict;
-use warnings;
+use 5.036;
+use warnings FATAL => 'all';
 
-use B    ();
-use Carp qw{croak};
+use B          ();
+use List::Util qw{any};
 
-# Op and SV flags are bit fields, so reading them takes bitwise operators.
 # The pad and SV helpers return an explicit undef because their callers put them in hash constructors,
 # where a bare return would give an empty list and shift every pair after it.
-## no critic (ProhibitBitwiseOperators ProhibitExplicitReturnUndef)
 
 =head1 SYNOPSIS
 
+    use Pod::Coverage::More::Analyzer;
+
     my $analyzer = Pod::Coverage::More::Analyzer->new();
-    my $subs     = $analyzer->analyze_package('Some::Module');
-    my @params   = map { $_->{name} } @{ $subs->{some_sub}{params} };
+    my $subs     = $analyzer->analyze_package('Pod::Coverage::More::Analyzer');
+    my @params   = map { $_->{name} } @{ $subs->{analyze_sub}{params} };
 
 =head1 DESCRIPTION
 
@@ -30,6 +30,7 @@ The op tree changes between perl versions.
 C<new> returns an object of the subclass for the running perl,
 and each subclass adds handlers for the ops of its version set.
 This class handles the ops that all supported versions share.
+L<B::Deparse> is the reference for how each op of each perl version is meant to be read.
 
 The analysis is best effort.
 It reports what the op tree shows, and it marks what it cannot resolve with the type C<unknown>.
@@ -42,11 +43,11 @@ their ops can change from one development release to the next.
 
 =over 4
 
-=item 5.36 - L<Pod::Coverage::More::Analyzer::v5_36>
+=item 5.36 - L<Pod::Coverage::More::Analyzer::Perl5_36>
 
-=item 5.38 to 5.42 - L<Pod::Coverage::More::Analyzer::v5_38>
+=item 5.38 to 5.42 - L<Pod::Coverage::More::Analyzer::Perl5_38>
 
-=item 5.44 and later - L<Pod::Coverage::More::Analyzer::v5_44>
+=item 5.44 and later - L<Pod::Coverage::More::Analyzer::Perl5_44>
 
 =back
 
@@ -56,9 +57,45 @@ Each version set inherits from the one before it, and adds or replaces the handl
 
 # Lowest perl version of each version set, highest first.
 our @BACKENDS = (
-    [ 5.044 => 'Pod::Coverage::More::Analyzer::v5_44' ],
-    [ 5.038 => 'Pod::Coverage::More::Analyzer::v5_38' ],
-    [ 5.036 => 'Pod::Coverage::More::Analyzer::v5_36' ],
+    [ 5.044 => 'Pod::Coverage::More::Analyzer::Perl5_44' ],
+    [ 5.038 => 'Pod::Coverage::More::Analyzer::Perl5_38' ],
+    [ 5.036 => 'Pod::Coverage::More::Analyzer::Perl5_36' ],
+);
+
+# The ops whose names say what kind of value they read or produce.
+our %NUMERIC_OPS = map { $_ => 1 } qw{
+  add subtract multiply divide modulo pow negate abs int sqrt
+  lt gt le ge eq ne ncmp preinc predec postinc postdec
+  i_add i_subtract i_multiply i_divide i_modulo i_negate
+  i_lt i_gt i_le i_ge i_eq i_ne i_ncmp i_preinc i_predec i_postinc i_postdec
+};
+our %STRING_OPS = map { $_ => 1 } qw{
+  concat multiconcat seq sne slt sgt sle sge scmp
+  lc uc lcfirst ucfirst length substr index rindex match subst split
+};
+our %TERMINATORS = map { $_ => 1 } qw{
+  CORE::GLOBAL::die CORE::GLOBAL::exit
+  Carp::croak Carp::confess Carp::cluck
+};
+our %BOOLEAN_OPS = map { $_ => 1 } qw{
+  not defined exists
+  lt gt le ge eq ne i_lt i_gt i_le i_ge i_eq i_ne
+  slt sgt sle sge seq sne
+};
+our %NUMBER_OPS = map { $_ => 1 } qw{
+  add subtract multiply divide modulo pow negate abs int sqrt ncmp scmp
+  i_add i_subtract i_multiply i_divide i_modulo i_negate i_ncmp
+  length index rindex time
+};
+our %STRING_RESULT_OPS = map { $_ => 1 } qw{
+  concat multiconcat stringify join sprintf lc uc lcfirst ucfirst substr ref
+};
+our %LIST_OPS            = map { $_ => 1 } qw{ sort grepwhile mapwhile keys values reverse split };
+our $HELEM               = B::opnumber(q{helem});
+our @HASH_MDEREF_ACTIONS = (
+    B::MDEREF_HV_pop_rv2hv_helem(),          B::MDEREF_HV_gvsv_vivify_rv2hv_helem(),
+    B::MDEREF_HV_padsv_vivify_rv2hv_helem(), B::MDEREF_HV_vivify_rv2hv_helem(),
+    B::MDEREF_HV_padhv_helem(),              B::MDEREF_HV_gvhv_helem(),
 );
 
 =head1 METHODS
@@ -75,7 +112,7 @@ sub new {
     my ($class) = @_;
     my $backend = $class eq __PACKAGE__ ? backend_for($]) : $class;
     if ( $backend ne $class ) {
-        ( my $file = "$backend.pm" ) =~ s{::}{/}g;
+        ( my $file = "$backend.pm" ) =~ s{::}{/}gxsaa;
         require $file;
     }
     return bless( {}, $backend );
@@ -94,7 +131,7 @@ sub backend_for {
     foreach my $backend (@BACKENDS) {
         return $backend->[1] if $version >= $backend->[0];
     }
-    croak("Perl $version is not supported, the oldest supported perl is $BACKENDS[-1][0]");
+    die "Perl $version is not supported, the oldest supported perl is $BACKENDS[-1][0]\n";
 }
 
 =head2 analyze_package(PACKAGE)
@@ -110,9 +147,11 @@ sub analyze_package {
     my ( $self, $package ) = @_;
 
     my %subs;
-    no strict 'refs';    ## no critic (ProhibitNoStrict) the symbol table of a package named at runtime
+
+    # The symbol table of a package named at run time.
+    no strict 'refs';
     foreach my $name ( sort keys %{"${package}::"} ) {
-        next if $name =~ m/::$/;
+        next if $name =~ m/::\z/xsaa;
         next unless defined &{"${package}::$name"};
         my $code = \&{"${package}::$name"};
 
@@ -160,7 +199,7 @@ sub analyze_sub {
         name      => $name,
         package   => $package,
         file      => $cv->FILE,
-        generated => ( $cv->GV->NAME ne $name || $cv->FILE =~ m/^\(eval/ ) ? 1 : 0,
+        generated => ( $cv->GV->NAME ne $name || $cv->FILE =~ m/\A\(eval/xsaa ) ? 1 : 0,
         params    => [],
         usage     => {},
         returns   => [],
@@ -179,19 +218,24 @@ sub analyze_sub {
     }
     $rec{kind} = 'perl';
 
-    local $self->{cv}       = $cv;
-    local $self->{rec}      = \%rec;
-    local $self->{shifted}  = 0;
-    local $self->{consumed} = {};
-    local $self->{line_of}  = {};
-    local $self->{line};
-    local $self->{signature};
+    # The state of one walk lives on a copy of the analyzer, which shares its caches.
+    $self->{handlers}    //= $self->op_handlers;
+    $self->{classifiers} //= $self->op_classifiers;
+    my $walker = bless {
+        %$self,
+        cv        => $cv,
+        rec       => \%rec,
+        shifted   => 0,
+        consumed  => {},
+        line_of   => {},
+        line      => undef,
+        signature => undef,
+      },
+      ref $self;
 
-    $self->_walk( $cv->ROOT, [] );
-    push @{ $rec{returns} }, map {
-        { %$_, implicit => 1 }
-    } $self->_implicit_returns( $cv->ROOT );
-    $self->finish_sub( \%rec );
+    $walker->_walk( $cv->ROOT, [] );
+    push @{ $rec{returns} }, map { +{ %$_, implicit => 1 } } $walker->_implicit_returns( $cv->ROOT );
+    $walker->finish_sub( \%rec );
 
     @{ $rec{params} } = sort { $a->{index} <=> $b->{index} } @{ $rec{params} };
     foreach my $param ( @{ $rec{params} } ) {
@@ -213,18 +257,15 @@ sub finish_sub {
     return;
 }
 
-# The package the sub was compiled in, as opposed to the one it was imported into.
-sub _defined_in {
-    my ($cv) = @_;
-    my $gv = $cv->GV;
-    return '' if B::class($gv) ne 'GV';
-    return $gv->STASH->NAME;
-}
+=head2 op_handlers
 
-# Op handlers.  Each one is called with the op and the list of its ancestors, nearest last.
-# Subclasses add the ops of their version set through op_handlers().
+Returns a HASHREF that maps op names to the methods that the walk calls for each op of that name,
+with the op and the ARRAYREF of its ancestors, nearest last.
+Subclasses add the ops of their version set to what this returns.
+
+=cut
+
 sub op_handlers {
-    my ($self) = @_;
     return {
         nextstate  => \&_on_cop,
         dbstate    => \&_on_cop,
@@ -237,6 +278,8 @@ sub op_handlers {
         padhv      => \&_on_pad,
         multideref => \&_on_multideref,
         helem      => \&_on_helem,
+        exists     => \&_on_exists,
+        delete     => \&_on_exists,
         entersub   => \&_on_entersub,
         return     => \&_on_return,
         die        => \&_on_die,
@@ -244,24 +287,167 @@ sub op_handlers {
     };
 }
 
+=head2 op_classifiers
+
+Returns a HASHREF that maps op names to methods that C<classify> calls for them, ahead of its own rules.
+Subclasses add the value-producing ops of their version set here, as they add walk handlers in C<op_handlers>.
+The default has none.
+
+=cut
+
+sub op_classifiers {
+    return {};
+}
+
+=head2 op_kids(OP)
+
+Returns the kids of OP, in order, for the handlers of subclasses.
+
+=cut
+
+sub op_kids {
+    my ( undef, $op ) = @_;
+    return _kids($op);
+}
+
+# The package the sub was compiled in, as opposed to the one it was imported into.
+sub _defined_in {
+    my ($cv) = @_;
+    my $gv = $cv->GV;
+    return '' if B::class($gv) ne 'GV';
+    return $gv->STASH->NAME;
+}
+
+# These subs walk an op tree, which is as deep as the nesting of the source, and so recursion is their natural form.
+## no critic (Subroutines::ProhibitTailRecursion)
+
 sub _walk {
     my ( $self, $op, $ancestors ) = @_;
     return if !$$op;
 
-    my $handlers = $self->{handlers} //= $self->op_handlers;
-    my $name     = $op->name;
     $self->{line_of}{$$op} = $self->{line};
 
-    my $handler = $handlers->{$name};
+    my $handler = $self->{handlers}{ $op->name };
     $self->$handler( $op, $ancestors ) if $handler;
 
-    my @kids = _kids($op);
+    my @kids = $self->op_kids($op);
     return unless @kids;
     push @$ancestors, $op;
-    $self->_walk( $_, $ancestors ) foreach @kids;
+    foreach my $kid (@kids) {
+        $self->_walk( $kid, $ancestors );
+    }
     pop @$ancestors;
     return;
 }
+
+# The values a sub returns when control reaches its end without a return statement.
+sub _last_values {
+    my ( $self, $op ) = @_;
+    return () if !$op || !$$op;
+    my $name = $op->name;
+
+    if ( $name eq 'lineseq' || $name eq 'scope' || $name eq 'leave' || $name eq 'null' ) {
+        my @kids;
+        foreach my $kid ( _significant_kids($op) ) {
+            push @kids, $kid unless $kid->name eq 'nextstate' || $kid->name eq 'dbstate' || $kid->name eq 'enter';
+        }
+        return ()                   if !@kids && $name ne 'null';
+        return $self->classify($op) if !@kids;
+
+        # A null op that wraps one expression is that expression.
+        return $self->_last_values( $kids[-1] ) if $name ne 'null' || @kids == 1;
+        return $self->classify($op);
+    }
+    if ( $name eq 'cond_expr' ) {
+        my ( undef, $then, $else ) = _kids($op);
+        return ( $self->_last_values($then), $self->_last_values($else) );
+    }
+    if ( $name eq 'and' || $name eq 'or' || $name eq 'dor' ) {
+
+        # if (COND) { BODY } without an else: COND's value when the body does not run.
+        my ( $cond, $body ) = _kids($op);
+        return ( $self->classify($cond), $self->_last_values($body) );
+    }
+    return () if $name eq 'return' || $name eq 'die' || $name eq 'exit' || $name eq 'stub';
+
+    my $line = $self->{line_of}{$$op};
+    return ( { type => 'unknown', op => 'loop', line => $line } ) if $name eq 'leaveloop';
+    return map { +{ %$_, line => $line } } $self->classify($op);
+}
+
+=head2 classify(OP)
+
+Returns the evidence that OP, an op that produces a value, gives about that value.
+This is a list of HASHREFs, one per alternative, because an expression such as C<COND ? A : B> has more than one.
+
+The C<type> of each is one of C<undef>, C<empty>, C<number>, C<string>, C<boolean>, C<hashref>, C<arrayref>, C<coderef>, C<ref>,
+C<object>, C<variable>, C<call>, C<method>, C<list>, C<context> or C<unknown>.
+
+=cut
+
+sub classify {
+    my ( $self, $op ) = @_;
+    $op = _unwrap($op);
+    my $name = $op->name;
+
+    my $classifier = $self->{classifiers}{$name};
+    return $self->$classifier($op) if $classifier;
+
+    return _sv_evidence( $self->_const_sv($op) ) if $name eq 'const';
+    return { type => 'undef' }    if $name eq 'undef';
+    return { type => 'hashref' }  if $name eq 'anonhash';
+    return { type => 'arrayref' } if $name eq 'anonlist';
+    return { type => 'coderef' }  if $name eq 'anoncode';
+    return { type => 'context' }  if $name eq 'wantarray';
+
+    return $self->_classify_refgen($op) if $name eq 'srefgen' || $name eq 'refgen';
+    return $self->_classify_bless($op)  if $name eq 'bless';
+
+    if ( $name eq 'scalar' ) {
+        my ($kid) = _significant_kids($op);
+        return { type => 'unknown', op => $name } if !$kid;
+        my $kname = _unwrap($kid)->name;
+        return { type => 'number' } if $kname eq 'padav' || $kname eq 'rv2av';
+        return $self->classify($kid);
+    }
+    if ( $name eq 'padsv' || $name eq 'padav' || $name eq 'padhv' ) {
+        return { type => 'variable', name => $self->_padname( $op->targ ) };
+    }
+    if ( $name eq 'sassign' ) {
+        my ($value) = _kids($op);
+        return $self->classify($value);
+    }
+    if ( $name eq 'cond_expr' ) {
+        my ( $cond, $then, $else ) = _kids($op);
+
+        # wantarray ? LIST : SCALAR says which value goes with which context.
+        if ( _unwrap($cond)->name eq 'wantarray' ) {
+            return (
+                ( map { +{ %$_, context => 'list' } } $self->classify($then) ),
+                ( map { +{ %$_, context => 'scalar' } } $self->classify($else) ),
+            );
+        }
+        return ( $self->classify($then), $self->classify($else) );
+    }
+    if ( $name eq 'or' || $name eq 'dor' || $name eq 'and' ) {
+        my @evidence;
+        foreach my $kid ( _kids($op) ) {
+            push @evidence, $self->classify($kid);
+        }
+        return @evidence;
+    }
+    if ( $name eq 'entersub' ) {
+        my ($target) = $self->_call_target($op);
+        return $target // { type => 'call' };
+    }
+    return { type => 'boolean' } if $BOOLEAN_OPS{$name};
+    return { type => 'number' }  if $NUMBER_OPS{$name};
+    return { type => 'string' }  if $STRING_RESULT_OPS{$name};
+    return { type => 'list' }    if $LIST_OPS{$name};
+    return { type => 'unknown', op => $name };
+}
+
+## use critic
 
 sub _kids {
     my ($op) = @_;
@@ -277,7 +463,14 @@ sub _kids {
 # Kids that do something, as opposed to list markers and optimized-away ops.
 sub _significant_kids {
     my ($op) = @_;
-    return grep { $_->name ne 'pushmark' && $_->name ne 'padrange' && !( $_->name eq 'null' && !( $_->flags & B::OPf_KIDS ) ) } _kids($op);
+    my @significant;
+    foreach my $kid ( _kids($op) ) {
+        my $name = $kid->name;
+        next if $name eq 'pushmark' || $name eq 'padrange';
+        next if $name eq 'null' && !( $kid->flags & B::OPf_KIDS );
+        push @significant, $kid;
+    }
+    return @significant;
 }
 
 # Unwrap ex-list and similar null ops that have one kid.
@@ -377,7 +570,7 @@ sub _is_args_shift {
     return $self->_is_args_array( $kids[0] );
 }
 
-sub _usage {
+sub _usage_of {
     my ( $self, $var ) = @_;
     return $self->{rec}{usage}{$var} //= {};
 }
@@ -385,9 +578,9 @@ sub _usage {
 sub _add_param {
     my ( $self, %param ) = @_;
     my $params = $self->{rec}{params};
-    return if defined $param{name}  && grep { ( $_->{name} // '' ) eq $param{name} } @$params;
-    return if !defined $param{name} && grep { $_->{index} == $param{index} } @$params;
-    $param{slurpy} //= ( defined $param{name} && $param{name} =~ m/^[@%]/ ) ? 1 : 0;
+    return if defined $param{name}  && any { ( $_->{name} // '' ) eq $param{name} } @$params;
+    return if !defined $param{name} && any { $_->{index} == $param{index} } @$params;
+    $param{slurpy} //= ( defined $param{name} && $param{name} =~ m/\A[@%]/xsaa ) ? 1 : 0;
     push @$params, \%param;
     return;
 }
@@ -413,7 +606,7 @@ sub _assign_from_args {
     return;
 }
 
-# my $x = shift;  (5.36: the value is the first kid and the target the last)
+# The assignment of one value to a lexical scalar: the value is the first kid, and the target the last.
 sub _on_sassign {
     my ( $self, $op ) = @_;
     my @kids = _kids($op);
@@ -424,14 +617,17 @@ sub _on_sassign {
     return;
 }
 
-# my ($x, @y) = @_;  or  my %h = shift;
+# A list assignment to lexicals, from @_ or from one shift of it.
 sub _on_aassign {
     my ( $self, $op )  = @_;
     my ( $rhs,  $lhs ) = _kids($op);
     return unless $rhs && $lhs;
 
-    my @values  = _significant_kids($rhs);
-    my @targets = grep { $_->name =~ m/^pad[ash]v$/ } _significant_kids($lhs);
+    my @values = _significant_kids($rhs);
+    my @targets;
+    foreach my $kid ( _significant_kids($lhs) ) {
+        push @targets, $kid if $kid->name =~ m/\Apad[ash]v\z/xsaa;
+    }
     return if @values != 1 || !@targets;
 
     if ( $self->_is_args_array( $values[0] ) ) {
@@ -484,27 +680,16 @@ sub _on_aelemfast {
     return;
 }
 
-our %NUMERIC_OPS = map { $_ => 1 } qw{
-  add subtract multiply divide modulo pow negate abs int sqrt
-  lt gt le ge eq ne ncmp preinc predec postinc postdec
-  i_add i_subtract i_multiply i_divide i_modulo i_negate
-  i_lt i_gt i_le i_ge i_eq i_ne i_ncmp i_preinc i_predec i_postinc i_postdec
-};
-our %STRING_OPS = map { $_ => 1 } qw{
-  concat multiconcat seq sne slt sgt sle sge scmp
-  lc uc lcfirst ucfirst length substr index rindex match subst split
-};
-
 sub _on_pad {
     my ( $self, $op, $ancestors ) = @_;
     my $var    = $self->_padname( $op->targ ) // return;
     my $parent = $ancestors->[-1]             // return;
     my $pname  = $parent->name;
 
-    # A declaration, as in my $x = ..., is not a use of the variable.
+    # A declaration of the variable is not a use of it.
     return if $op->private & B::OPpLVAL_INTRO;
 
-    my $usage = $self->_usage($var);
+    my $usage = $self->_usage_of($var);
     if    ( $pname eq 'rv2hv' )    { $usage->{hashref}  = 1 }
     elsif ( $pname eq 'rv2av' )    { $usage->{arrayref} = 1 }
     elsif ( $pname eq 'rv2cv' )    { $usage->{coderef}  = 1 }
@@ -516,9 +701,9 @@ sub _on_pad {
 sub _add_key {
     my ( $self, $var, $key ) = @_;
     return if !defined $var || !defined $key;
-    my $usage = $self->_usage($var);
+    my $usage = $self->_usage_of($var);
     $usage->{keys} //= [];
-    push @{ $usage->{keys} }, $key unless grep { $_ eq $key } @{ $usage->{keys} };
+    push @{ $usage->{keys} }, $key unless any { $_ eq $key } @{ $usage->{keys} };
     return;
 }
 
@@ -536,19 +721,14 @@ sub _on_multideref {
             $actions = shift @items;
             next;
         }
-
-        my $is_hash = grep { $action == $_ } (
-            B::MDEREF_HV_pop_rv2hv_helem(),          B::MDEREF_HV_gvsv_vivify_rv2hv_helem(),
-            B::MDEREF_HV_padsv_vivify_rv2hv_helem(), B::MDEREF_HV_vivify_rv2hv_helem(),
-            B::MDEREF_HV_padhv_helem(),              B::MDEREF_HV_gvhv_helem(),
-        );
+        my $is_hash = any { $action == $_ } @HASH_MDEREF_ACTIONS;
 
         if ( $action == B::MDEREF_AV_padav_aelem || $action == B::MDEREF_HV_padhv_helem ) {
             $var = $self->_padname( shift @items );
         }
         elsif ( $action == B::MDEREF_AV_padsv_vivify_rv2av_aelem || $action == B::MDEREF_HV_padsv_vivify_rv2hv_helem ) {
             $var = $self->_padname( shift @items );
-            $self->_usage($var)->{ $is_hash ? 'hashref' : 'arrayref' } = 1 if defined $var;
+            $self->_usage_of($var)->{ $is_hash ? 'hashref' : 'arrayref' } = 1 if defined $var;
         }
         elsif ($action == B::MDEREF_AV_gvav_aelem
             || $action == B::MDEREF_HV_gvhv_helem
@@ -594,10 +774,16 @@ sub _on_helem {
     return;
 }
 
-our %TERMINATORS = map { $_ => 1 } qw{
-  CORE::GLOBAL::die CORE::GLOBAL::exit
-  Carp::croak Carp::confess Carp::cluck
-};
+# exists $o{name} or delete $o{name} when perl did not fold it into a multideref:
+# the hash element is then a null op that was a helem.
+sub _on_exists {
+    my ( $self, $op ) = @_;
+    my ($elem) = _kids($op);
+    return if !$elem;
+    return if $elem->name ne q{null} || $elem->targ != $HELEM;
+    $self->_on_helem($elem);
+    return;
+}
 
 sub _call_target {
     my ( $self, $op ) = @_;
@@ -631,26 +817,31 @@ sub _on_entersub {
     return if !$target;
 
     if ( $target->{type} eq 'method' ) {
-        my $invocant = $args->[0] && _unwrap( $args->[0] );
-        if ( $invocant && $invocant->name eq 'padsv' ) {
-            my $var = $self->_padname( $invocant->targ );
-            if ( defined $var ) {
-                my $usage = $self->_usage($var);
-                $usage->{methods} //= [];
-                push @{ $usage->{methods} }, $target->{method}
-                  if defined $target->{method} && !grep { $_ eq $target->{method} } @{ $usage->{methods} };
-            }
-        }
+        $self->_add_method_use( $args->[0], $target->{method} );
         $self->_add_death( 'throw', $ancestors ) if ( $target->{method} // '' ) eq 'throw';
         return;
     }
     if ( defined $target->{coderef} ) {
-        $self->_usage( $target->{coderef} )->{coderef} = 1;
+        $self->_usage_of( $target->{coderef} )->{coderef} = 1;
         return;
     }
     if ( defined $target->{function} && $TERMINATORS{ $target->{function} } ) {
         $self->_add_death( $target->{function}, $ancestors );
     }
+    return;
+}
+
+# Records METHOD as called on the variable that INVOCANT reads, when it reads one.
+sub _add_method_use {
+    my ( $self, $invocant, $method ) = @_;
+    return if !$invocant || !defined $method;
+    $invocant = _unwrap($invocant);
+    return if $invocant->name ne 'padsv';
+    my $var = $self->_padname( $invocant->targ ) // return;
+
+    my $usage = $self->_usage_of($var);
+    $usage->{methods} //= [];
+    push @{ $usage->{methods} }, $method unless any { $_ eq $method } @{ $usage->{methods} };
     return;
 }
 
@@ -667,8 +858,8 @@ sub _add_death {
 # Inside eval {} or the try block of try/catch, but not inside its catch block.
 sub _is_caught {
     my ($ancestors) = @_;
-    for ( my $i = $#$ancestors; $i >= 0; $i-- ) {
-        my $name = $ancestors->[$i]->name;
+    foreach my $ancestor ( reverse @$ancestors ) {
+        my $name = $ancestor->name;
         return 1 if $name eq 'leavetry';
         return 0 if $name eq 'catch';
         return 1 if $name eq 'leavetrycatch' || $name eq 'entertrycatch';
@@ -694,178 +885,52 @@ sub _on_return {
         @evidence = $self->classify( $values[0] );
     }
     else {
-        @evidence = ( { type => 'list', count => scalar(@values), items => [ map { [ $self->classify($_) ] } @values ] } );
+        my @items;
+        foreach my $value (@values) {
+            push @items, [ $self->classify($value) ];
+        }
+        @evidence = ( { type => 'list', count => scalar(@values), items => \@items } );
     }
-    push @{ $self->{rec}{returns} }, map {
-        { %$_, line => $line, implicit => 0 }
-    } @evidence;
+    push @{ $self->{rec}{returns} }, map { +{ %$_, line => $line, implicit => 0 } } @evidence;
     return;
 }
 
-# The values a sub returns when control reaches its end without a return statement.
 sub _implicit_returns {
     my ( $self, $op ) = @_;
     $op = $op->first if $op->name eq 'leavesub';
     return $self->_last_values($op);
 }
 
-sub _last_values {
+sub _classify_refgen {
     my ( $self, $op ) = @_;
-    return () if !$op || !$$op;
-    my $name = $op->name;
-
-    if ( $name eq 'lineseq' || $name eq 'scope' || $name eq 'leave' || $name eq 'null' ) {
-        my @kids = grep { $_->name ne 'nextstate' && $_->name ne 'dbstate' && $_->name ne 'enter' } _significant_kids($op);
-        return ()                   if !@kids && $name ne 'null';
-        return $self->classify($op) if !@kids;
-
-        # A null op that wraps one expression is that expression.
-        return $self->_last_values( $kids[-1] ) if $name ne 'null' || @kids == 1;
-        return $self->classify($op);
-    }
-    if ( $name eq 'cond_expr' ) {
-        my ( undef, $then, $else ) = _kids($op);
-        return ( $self->_last_values($then), $self->_last_values($else) );
-    }
-    if ( $name eq 'and' || $name eq 'or' || $name eq 'dor' ) {
-
-        # if (COND) { BODY } without an else: COND's value when the body does not run.
-        my ( $cond, $body ) = _kids($op);
-        return ( $self->classify($cond), $self->_last_values($body) );
-    }
-    return ()                                                                      if $name eq 'return' || $name eq 'die' || $name eq 'exit';
-    return ( { type => 'unknown', op => 'loop', line => $self->{line_of}{$$op} } ) if $name eq 'leaveloop';
-    return ()                                                                      if $name eq 'stub';
-
-    return map {
-        { %$_, line => $self->{line_of}{$$op} }
-    } $self->classify($op);
+    my ($kid) = _significant_kids($op);
+    $kid = _unwrap($kid) if $kid;
+    my $kname = $kid ? $kid->name : '';
+    return { type => 'coderef' }  if $kname eq 'anoncode';
+    return { type => 'arrayref' } if $kname eq 'padav' || $kname eq 'rv2av';
+    return { type => 'hashref' }  if $kname eq 'padhv' || $kname eq 'rv2hv';
+    return { type => 'ref' };
 }
 
-our %BOOLEAN_OPS = map { $_ => 1 } qw{
-  not defined exists
-  lt gt le ge eq ne i_lt i_gt i_le i_ge i_eq i_ne
-  slt sgt sle sge seq sne
-};
-our %NUMBER_OPS = map { $_ => 1 } qw{
-  add subtract multiply divide modulo pow negate abs int sqrt ncmp scmp
-  i_add i_subtract i_multiply i_divide i_modulo i_negate i_ncmp
-  length index rindex time
-};
-our %STRING_RESULT_OPS = map { $_ => 1 } qw{
-  concat multiconcat stringify join sprintf lc uc lcfirst ucfirst substr ref
-};
-our %LIST_OPS = map { $_ => 1 } qw{ sort grepwhile mapwhile keys values reverse split };
+sub _classify_bless {
+    my ( $self, $op )    = @_;
+    my ( undef, $class ) = _significant_kids($op);
+    return { type => 'object', class => $self->{rec}{package} } if !$class;
+    $class = _unwrap($class);
+    return { type => 'object', class => _sv_value( $self->_const_sv($class) ) } if $class->name eq 'const';
 
-=head2 classify(OP)
-
-Returns the evidence that OP, an op that produces a value, gives about that value.
-This is a list of HASHREFs, one per alternative, because an expression such as C<COND ? A : B> has more than one.
-
-The C<type> of each is one of C<undef>, C<empty>, C<number>, C<string>, C<boolean>, C<hashref>, C<arrayref>, C<coderef>, C<ref>,
-C<object>, C<variable>, C<call>, C<method>, C<list>, C<context> or C<unknown>.
-
-=cut
-
-=head2 op_classifiers
-
-Returns a HASHREF that maps op names to methods that C<classify> calls for them, ahead of its own rules.
-Subclasses add the value-producing ops of their version set here, as they add walk handlers in C<op_handlers>.
-The default has none.
-
-=cut
-
-sub op_classifiers {
-    return {};
-}
-
-sub classify {
-    my ( $self, $op ) = @_;
-    $op = _unwrap($op);
-    my $name = $op->name;
-
-    my $classifier = ( $self->{classifiers} //= $self->op_classifiers )->{$name};
-    return $self->$classifier($op) if $classifier;
-
-    return _sv_evidence( $self->_const_sv($op) ) if $name eq 'const';
-    return { type => 'undef' }    if $name eq 'undef';
-    return { type => 'hashref' }  if $name eq 'anonhash';
-    return { type => 'arrayref' } if $name eq 'anonlist';
-    return { type => 'coderef' }  if $name eq 'anoncode';
-    return { type => 'context' }  if $name eq 'wantarray';
-
-    if ( $name eq 'srefgen' || $name eq 'refgen' ) {
-        my ($kid) = _significant_kids($op);
-        $kid = _unwrap($kid) if $kid;
-        my $kname = $kid ? $kid->name : '';
-        return { type => 'coderef' }  if $kname eq 'anoncode';
-        return { type => 'arrayref' } if $kname eq 'padav' || $kname eq 'rv2av';
-        return { type => 'hashref' }  if $kname eq 'padhv' || $kname eq 'rv2hv';
-        return { type => 'ref' };
-    }
-    if ( $name eq 'bless' ) {
-        my ( undef, $class ) = _significant_kids($op);
-        return { type => 'object', class => $self->{rec}{package} } if !$class;
-        $class = _unwrap($class);
-        return { type => 'object', class => _sv_value( $self->_const_sv($class) ) } if $class->name eq 'const';
-
-        # bless REF, $class  or  bless REF, ref($proto) || $proto: the class comes from a variable.
-        my $from = $class->name eq 'or' ? _unwrap( ( _kids($class) )[-1] ) : $class;
-        return { type => 'object', class => undef, class_from => $self->_padname( $from->targ ) } if $from->name eq 'padsv';
-        return { type => 'object', class => undef };
-    }
-    if ( $name eq 'scalar' ) {
-        my ($kid) = _significant_kids($op);
-        return { type => 'unknown', op => $name } if !$kid;
-        my $kname = _unwrap($kid)->name;
-        return { type => 'number' } if $kname eq 'padav' || $kname eq 'rv2av';
-        return $self->classify($kid);
-    }
-    if ( $name eq 'padsv' || $name eq 'padav' || $name eq 'padhv' ) {
-        return { type => 'variable', name => $self->_padname( $op->targ ) };
-    }
-    if ( $name eq 'sassign' ) {
-        my ($value) = _kids($op);
-        return $self->classify($value);
-    }
-    if ( $name eq 'cond_expr' ) {
-        my ( $cond, $then, $else ) = _kids($op);
-
-        # wantarray ? LIST : SCALAR says which value goes with which context.
-        if ( _unwrap($cond)->name eq 'wantarray' ) {
-            return (
-                (
-                    map {
-                        { %$_, context => 'list' }
-                    } $self->classify($then)
-                ),
-                (
-                    map {
-                        { %$_, context => 'scalar' }
-                    } $self->classify($else)
-                ),
-            );
-        }
-        return ( $self->classify($then), $self->classify($else) );
-    }
-    if ( $name eq 'or' || $name eq 'dor' || $name eq 'and' ) {
-        return map { $self->classify($_) } _kids($op);
-    }
-    if ( $name eq 'entersub' ) {
-        my ($target) = $self->_call_target($op);
-        return $target // { type => 'call' };
-    }
-    return { type => 'boolean' } if $BOOLEAN_OPS{$name};
-    return { type => 'number' }  if $NUMBER_OPS{$name};
-    return { type => 'string' }  if $STRING_RESULT_OPS{$name};
-    return { type => 'list' }    if $LIST_OPS{$name};
-    return { type => 'unknown', op => $name };
+    # bless REF, $class  or  bless REF, ref($proto) || $proto: the class comes from a variable.
+    my $from = $class->name eq 'or' ? _unwrap( ( _kids($class) )[-1] ) : $class;
+    return { type => 'object', class => undef, class_from => $self->_padname( $from->targ ) } if $from->name eq 'padsv';
+    return { type => 'object', class => undef };
 }
 
 1;
 
 =head1 SEE ALSO
 
-L<B>, L<B::Deparse>, which shows how each op of each perl version is meant to be read.
+L<B>
+
+L<B::Deparse>
 
 =cut

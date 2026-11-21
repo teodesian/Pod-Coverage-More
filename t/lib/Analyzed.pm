@@ -3,8 +3,14 @@ package Analyzed;
 # Subs written in the idioms that Pod::Coverage::More::Analyzer must read without a signature.
 # Each sub exercises one idiom; t/Pod-Coverage-More-Analyzer.t states what the analyzer must report for it.
 
-use strict;
-use warnings;
+use 5.036;
+use warnings FATAL => q{all};
+
+# Each sub here is an idiom that the analyzer must read, and these policies forbid some of them:
+# implicit returns, $_[N], an unused import of a sub that analyze_package must leave out,
+# a closure, one-argument bless, string eval, eval as a statement, and the croak and constants
+# that the analyzer must recognize.
+## no critic (Subroutines::RequireFinalReturn Subroutines::RequireArgUnpacking ProhibitUnusedImports Subroutines::ProhibitSingleUseLexicalSubs ClassHierarchies::ProhibitOneArgBless BuiltinFunctions::ProhibitStringyEval ErrorHandling::RequireCheckingReturnValueOfEval PreferredModules)
 
 use Carp         qw{croak};
 use Scalar::Util qw{blessed};

@@ -1,10 +1,10 @@
 # ABSTRACT: Op tree analysis for perl 5.36
-# PODNAME: Pod::Coverage::More::Analyzer::v5_36
+# PODNAME: Pod::Coverage::More::Analyzer::Perl5_36
 
-package Pod::Coverage::More::Analyzer::v5_36;
+package Pod::Coverage::More::Analyzer::Perl5_36;
 
-use strict;
-use warnings;
+use 5.036;
+use warnings FATAL => q{all};
 
 use parent 'Pod::Coverage::More::Analyzer';
 
@@ -16,7 +16,7 @@ then one C<argelem> op per named parameter, with an C<argdefelem> kid when it ha
 
 See C<deparse_argops> in the L<B::Deparse> of these perls for the reference reading of these ops.
 
-5.38 to 5.42 compile signatures the same way, so L<Pod::Coverage::More::Analyzer::v5_38> inherits this.
+5.38 to 5.42 compile signatures the same way, so L<Pod::Coverage::More::Analyzer::Perl5_38> inherits this.
 In 5.36, C<my $x = EXPR> is always an C<sassign> op, which the base class reads.
 
 =cut
@@ -65,7 +65,7 @@ sub _on_argelem {
         optional => ( $index >= ( $self->{signature}{mandatory} // 0 ) ) ? 1 : 0,
     );
 
-    my ($default) = Pod::Coverage::More::Analyzer::_kids($op);
+    my ($default) = $self->op_kids($op);
     if ( $default && $default->name eq 'argdefelem' ) {
         $param{default} = { mode => $self->default_mode($default), value => [ $self->classify( $default->first ) ] };
     }

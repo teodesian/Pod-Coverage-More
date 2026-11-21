@@ -1,7 +1,11 @@
 package Ret;
 
-use strict;
-use warnings;
+use 5.036;
+use warnings FATAL => q{all};
+
+# The return values here are idioms that the analyzer must read, and these policies forbid some of them:
+# a value that falls off the end of a sub, the unused variable that it returns, and one-argument bless.
+## no critic (Subroutines::RequireFinalReturn Variables::ProhibitUnusedVarsStricter ClassHierarchies::ProhibitOneArgBless)
 
 =head1 t/Ret.pm - Test return values
 
@@ -55,7 +59,7 @@ returns ARRAY.
 
 #Fall-through return
 sub ret5 {
-    my @otherSym;
+    my @other_sym;
 }
 
 =head2 ret6
