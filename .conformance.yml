@@ -1,0 +1,28 @@
+flavor: troglodyne-compat
+source:
+  git: https://github.com/Troglodyne-Internet-Widgets/perl-slop-plugin.git
+  path: skills/packaging-perl
+variables:
+  DIST: Pod-Coverage-More
+  AUTHOR_NAME: George S. Baugh
+  AUTHOR_EMAIL: teodesian@cpan.org
+  COPYRIGHT_HOLDER: George S. Baugh
+  YEAR: '2014-2026'
+  CPAN_ID: TEODESIAN
+  # Pod::Coverage::More::Analyzer decodes the op trees of 5.36 and later only.
+  PERL_FLOOR: '5.036'
+checks:
+  CriticProfile:
+    overrides:
+      # The tests put t/lib on @INC with core FindBin and use lib, because
+      # FindBin::libs v5.5.1 does not install on perl 5.36 or 5.38: its
+      # Makefile runs t/bin/install-tests, which only its v5.40 tree has.
+      # Turn this back on once a fixed FindBin::libs is on CPAN.
+      ProhibitUseLib: off
+      # The pragma is off here because loading any module that uses it stops
+      # perl compiling the multideref op for all code compiled afterward,
+      # including the modules that Pod::Coverage::More::Analyzer reads.  A tool
+      # that reads op trees must not change the op trees of the code it reads.
+      # Measured with autovivification 0.18 on perl 5.44: its CAVEATS mention
+      # only a slower compilation.
+      Variables::RequireNoAutovivification: off
