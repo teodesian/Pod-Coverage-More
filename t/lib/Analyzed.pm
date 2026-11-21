@@ -150,4 +150,12 @@ sub clucks {
     return;
 }
 
+# Optional parameters written by hand, as Method::Signatures also compiles them.
+sub defaulted {
+    my $x = $_[0];
+    my $y = @_ > 1 ? $_[1] : 5;
+    my $z = $_[2] // q{z};
+    return [ $x, $y, $z ];
+}
+
 1;

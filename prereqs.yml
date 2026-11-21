@@ -16,3 +16,4 @@ test:
     Function::Parameters: '0'
     Kavorka: '0'
     Object::Pad: '0'
+    Method::Signatures: '0'

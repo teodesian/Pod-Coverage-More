@@ -29,4 +29,4 @@ checks:
       # Class builders and keyword modules, which the test fixtures import for
       # the keywords they export (has, class, fun), a use the policy cannot see.
       ProhibitUnusedImports:
-        allow: Moose Moo Mouse Class::Tiny Object::Pad Kavorka
+        allow: Moose Moo Mouse Class::Tiny Object::Pad Kavorka Method::Signatures

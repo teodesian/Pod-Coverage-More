@@ -67,8 +67,10 @@ sub declarations {
 
 # The signature object that the wrapper CODE closes over, or nothing when CODE is no wrapper of Type::Params.
 sub _signature_of {
-    my ($code)  = @_;
-    my $padlist = B::svref_2object($code)->PADLIST;
+    my ($code) = @_;
+    my $cv = B::svref_2object($code);
+    return if $cv->XSUB || ( $cv->CvFLAGS & B::CVf_CONST );
+    my $padlist = $cv->PADLIST;
     my @names   = $padlist->ARRAYelt(0)->ARRAY;
     my @values  = $padlist->ARRAYelt(1)->ARRAY;
     foreach my $index ( 1 .. $#names ) {

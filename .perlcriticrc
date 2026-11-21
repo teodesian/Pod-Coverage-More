@@ -125,7 +125,7 @@ exclude_functions = print
 [ProhibitNoWarningsRedefine]
 [RequireFatalWarnings]
 [ProhibitUnusedImports]
-allow = Moose Moo Mouse Class::Tiny Object::Pad Kavorka
+allow = Moose Moo Mouse Class::Tiny Object::Pad Kavorka Method::Signatures
 # Modules imported for a side effect rather than for a symbol, which the policy
 # cannot see.  Its built-in list has the pragmas, re, Test::NoWarnings,
 # Test2::Plugin::NoWarnings and Mojo::Base.  Add your own with an override of

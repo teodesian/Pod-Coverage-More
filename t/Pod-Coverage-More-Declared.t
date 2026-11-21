@@ -122,4 +122,13 @@ subtest 'Type::Params' => sub {
     is( declared_params( $subs->{greet} ),        [ 'invocant', 'named who:Str', 'named times:Int optional' ], "a method with named parameters" );
 };
 
+subtest 'Method::Signatures' => sub {
+    my $subs = analyze_or_skip( 'Method::Signatures', 'Declared::WithMS' );
+    my @declared;
+    foreach my $param ( @{ $subs->{scale}{params} } ) {
+        push @declared, "$param->{name}:" . ( $param->{declared} ? $param->{declared}->display_name . " by $param->{declared_by}" : q{-} );
+    }
+    is( \@declared, [ q{$x:Int by Method::Signatures}, q{$by:Num by Method::Signatures} ], "the type checks that Method::Signatures compiles declare the types" );
+};
+
 done_testing;
