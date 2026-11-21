@@ -5,6 +5,7 @@ package Pod::Coverage::More;
 
 use 5.036;
 use warnings FATAL => q{all};
+use re q{/xsaa};
 
 use Pod::Find    qw(pod_where);
 use Clone        qw{clone};
@@ -203,10 +204,10 @@ sub coverage_argument_types {
         #Loop over declared functions/args and check against the analysis
         foreach my $fun_with_args ( keys( %{ $subrow->{'args'} } ) ) {
             my @funargs          = @{ $subrow->{'args'}->{$fun_with_args} };
-            my @args_with_sigils = grep { m/\A[\$*\\@%&|]/xsaa } @funargs;
+            my @args_with_sigils = grep { m/\A[\$*\\@%&|]/ } @funargs;
 
             #Replace REF looking args with $ sigils
-            @funargs = map { ( my $subj = $_ ) =~ s/\A\\[\$*@%&|]/\$/xsaa; $subj } @funargs;
+            @funargs = map { ( my $subj = $_ ) =~ s/\A\\[\$*@%&|]/\$/; $subj } @funargs;
             my @peekedargs = @{ clone( $subrow->{'sub_vars'}->{$fun_with_args} ) };
 
             push @failures,
@@ -252,7 +253,7 @@ sub _item_type_mismatches {
 
     #Check each parameter's sigil against the type documented for that arg
     foreach my $peeked_arg (@$peekedargs) {
-        my ( $sigil, $arg_name ) = $peeked_arg =~ m/\A(.)(.+)\z/xsaa;
+        my ( $sigil, $arg_name ) = $peeked_arg =~ m/\A(.)(.+)\z/;
         next if !defined $sigil;
         my $peeked_type = $SIGIL_TYPES{$sigil};
         my $pod_type    = $arglist->{ lc($arg_name) };

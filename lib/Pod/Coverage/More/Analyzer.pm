@@ -4,10 +4,13 @@
 package Pod::Coverage::More::Analyzer;
 
 use 5.036;
-use warnings FATAL => 'all';
+use warnings FATAL => q{all};
+use re q{/xsaa};
 
-use B          ();
-use List::Util qw{any};
+use B               ();
+use List::Util      qw{any};
+use Module::Runtime qw{require_module};
+use Package::Stash;
 
 # The pad and SV helpers return an explicit undef because their callers put them in hash constructors,
 # where a bare return would give an empty list and shift every pair after it.
@@ -75,7 +78,8 @@ our %STRING_OPS = map { $_ => 1 } qw{
 };
 our %TERMINATORS = map { $_ => 1 } qw{
   CORE::GLOBAL::die CORE::GLOBAL::exit
-  Carp::croak Carp::confess Carp::cluck
+  Carp::croak Carp::confess
+  POSIX::_exit
 };
 our %BOOLEAN_OPS = map { $_ => 1 } qw{
   not defined exists
@@ -111,10 +115,7 @@ Dies when the running perl is older than the oldest supported version set.
 sub new {
     my ($class) = @_;
     my $backend = $class eq __PACKAGE__ ? backend_for($]) : $class;
-    if ( $backend ne $class ) {
-        ( my $file = "$backend.pm" ) =~ s{::}{/}gxsaa;
-        require $file;
-    }
+    require_module($backend) if $backend ne $class;
     return bless( {}, $backend );
 }
 
@@ -147,13 +148,9 @@ sub analyze_package {
     my ( $self, $package ) = @_;
 
     my %subs;
-
-    # The symbol table of a package named at run time.
-    no strict 'refs';
-    foreach my $name ( sort keys %{"${package}::"} ) {
-        next if $name =~ m/::\z/xsaa;
-        next unless defined &{"${package}::$name"};
-        my $code = \&{"${package}::$name"};
+    my $stash = Package::Stash->new($package);
+    foreach my $name ( sort $stash->list_all_symbols(q{CODE}) ) {
+        my $code = $stash->get_symbol("&$name");
 
         my $cv = B::svref_2object($code);
         next if _defined_in($cv) ne $package;
@@ -199,7 +196,7 @@ sub analyze_sub {
         name      => $name,
         package   => $package,
         file      => $cv->FILE,
-        generated => ( $cv->GV->NAME ne $name || $cv->FILE =~ m/\A\(eval/xsaa ) ? 1 : 0,
+        generated => ( $cv->GV->NAME ne $name || $cv->FILE =~ m/\A\(eval/ ) ? 1 : 0,
         params    => [],
         usage     => {},
         returns   => [],
@@ -580,7 +577,7 @@ sub _add_param {
     my $params = $self->{rec}{params};
     return if defined $param{name}  && any { ( $_->{name} // '' ) eq $param{name} } @$params;
     return if !defined $param{name} && any { $_->{index} == $param{index} } @$params;
-    $param{slurpy} //= ( defined $param{name} && $param{name} =~ m/\A[@%]/xsaa ) ? 1 : 0;
+    $param{slurpy} //= ( defined $param{name} && $param{name} =~ m/\A[@%]/ ) ? 1 : 0;
     push @$params, \%param;
     return;
 }
@@ -626,7 +623,7 @@ sub _on_aassign {
     my @values = _significant_kids($rhs);
     my @targets;
     foreach my $kid ( _significant_kids($lhs) ) {
-        push @targets, $kid if $kid->name =~ m/\Apad[ash]v\z/xsaa;
+        push @targets, $kid if $kid->name =~ m/\Apad[ash]v\z/;
     }
     return if @values != 1 || !@targets;
 

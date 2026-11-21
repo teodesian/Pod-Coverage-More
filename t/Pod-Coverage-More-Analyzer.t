@@ -2,6 +2,7 @@
 
 use 5.036;
 use warnings FATAL => q{all};
+use re q{/xsaa};
 
 use Test2::V1 -i;    ## no critic (ProhibitUnusedImports) -i imports every tool, which the policy cannot see
 use Test2::Plugin::NoWarnings;
@@ -35,8 +36,8 @@ sub returns_of {
 }
 
 subtest backend_for => sub {
-    like( dies { Pod::Coverage::More::Analyzer::backend_for(5.034) },    qr/not supported/saa, "5.34 is older than the oldest version set" );
-    like( dies { Pod::Coverage::More::Analyzer::backend_for(5.035999) }, qr/not supported/saa, "the last 5.35 is still older than the oldest version set" );
+    like( dies { Pod::Coverage::More::Analyzer::backend_for(5.034) },    qr/not[ ]supported/, "5.34 is older than the oldest version set" );
+    like( dies { Pod::Coverage::More::Analyzer::backend_for(5.035999) }, qr/not[ ]supported/, "the last 5.35 is still older than the oldest version set" );
     is( Pod::Coverage::More::Analyzer::backend_for(5.036),    'Pod::Coverage::More::Analyzer::Perl5_36', "5.36 has its own set" );
     is( Pod::Coverage::More::Analyzer::backend_for(5.036003), 'Pod::Coverage::More::Analyzer::Perl5_36', "5.36 maintenance releases stay in it" );
     is( Pod::Coverage::More::Analyzer::backend_for(5.038),    'Pod::Coverage::More::Analyzer::Perl5_38', "5.38 starts the padsv_store set" );
@@ -129,6 +130,8 @@ subtest dies => sub {
         "die, an imported croak, and a die inside eval"
     );
     is( $subs->{shifted}{dies}, [], "a sub with no explicit termination" );
+    like( $subs->{exits_hard}{dies}, [ { via => q{POSIX::_exit}, caught => 0 } ], "POSIX::_exit terminates" );
+    is( $subs->{clucks}{dies}, [], "Carp::cluck only warns, so it is no termination" );
 };
 
 subtest signatures => sub {

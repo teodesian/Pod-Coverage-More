@@ -2,6 +2,7 @@
 
 use 5.036;
 use warnings FATAL => q{all};
+use re q{/xsaa};
 
 use Test2::V1 -i;    ## no critic (ProhibitUnusedImports) -i imports every tool, which the policy cannot see
 use Test2::Plugin::NoWarnings;
@@ -17,7 +18,7 @@ require Mistyped;
 # The messages of a result, one per line, in a stable order: they come out in hash order.
 sub messages_of {
     my ($result) = @_;
-    return [ sort split m/^/xmsaa, $result->{message} // '' ];
+    return [ sort split m/^/m, $result->{message} // '' ];
 }
 
 subtest coverage_arguments => sub {

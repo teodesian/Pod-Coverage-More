@@ -4,6 +4,7 @@ package Pod::Coverage::Extractor::More;
 
 use 5.036;
 use warnings FATAL => q{all};
+use re q{/xsaa};
 
 use Test::Deep::NoTest qw{eq_deeply};
 use parent 'Pod::Parser';
@@ -14,7 +15,7 @@ our $DEBUG = 0;
 our @TYPES = qw{SCALAR SCALARREF ARRAY ARRAYREF HASH HASHREF CODEREF TYPEGLOBREF OBJECT STRING INTEGER FLOAT BOOLEAN MIXED};
 
 # An argument list in parentheses, as it may follow a function name in a heading.
-our $ARGLIST = qr/\(\s*[\$|\\|@|%|&|\*|\w*,|\w*|\w*\s*]+\s*\)/xsaa;
+our $ARGLIST = qr/\(\s*[\$|\\|@|%|&|\*|\w*,|\w*|\w*\s*]+\s*\)/;
 
 =head1 DESCRIPTION
 
@@ -37,7 +38,7 @@ and the argument and its type of an C<=item>.  Returns nothing.
 sub command {
     my ( $self, $command, $text ) = @_;
     return $self->_item($text)    if $command eq 'item';
-    return $self->_heading($text) if $command =~ m/\Ahead[234]/xsaa;
+    return $self->_heading($text) if $command =~ m/\Ahead[234]/;
     return;
 }
 
@@ -53,12 +54,12 @@ sub _item {
     my @args          = @{ $self->{'current_function_map'}->{'args'}->{ $arg_indices[0] } };
     foreach my $arg (@args) {
         $arg = lc($arg);
-        if ( lc($text) =~ m/$arg/xsaa ) {
+        if ( lc($text) =~ m/$arg/ ) {
 
             #Check if it has a type declared
             $arg_type_list->{$arg} = '';
             foreach my $type ( map { lc } @TYPES ) {
-                if ( lc($text) =~ m/\b$type\b/xsaa ) {
+                if ( lc($text) =~ m/\b$type\b/ ) {
                     $arg_type_list->{$arg} = $type;
                     last;
                 }
@@ -84,30 +85,30 @@ sub _item {
 sub _heading {
     my ( $self, $text ) = @_;
 
-    $text =~ s/[;#]//gxsaa;    #Strip semicolons, hashes that's stupid to use in your POD line
-    my @args = map { ( my $subj = $_ ) =~ s/\s//gxsaa; $subj } ( $text =~ m/\(\s*([\$|\\|@|%|&|\*|\w*,|\w*|\w*\s*]+)\s*\)/gxsaa );
-    my @funcs_with_args = ( $text =~ m/(\w*)\s*$ARGLIST/gxsaa );
+    $text =~ s/[;#]//g;    #Strip semicolons, hashes that's stupid to use in your POD line
+    my @args = map { ( my $subj = $_ ) =~ s/\s//g; $subj } ( $text =~ m/\(\s*([\$|\\|@|%|&|\*|\w*,|\w*|\w*\s*]+)\s*\)/g );
+    my @funcs_with_args = ( $text =~ m/(\w*)\s*$ARGLIST/g );
 
     my $text_with_only_functions = $text;
-    $text_with_only_functions =~ s/(?:$ARGLIST)//gxsaa;       #Strip args
-    $text_with_only_functions =~ s/\w+(?:::\w+)*:://gxsaa;    #Strip full qualification
-    $text_with_only_functions =~ s/\$\w+->//gxsaa;            # Strip method call on object
+    $text_with_only_functions =~ s/$ARGLIST//g;           #Strip args
+    $text_with_only_functions =~ s/\w+(?:::\w+)*:://g;    #Strip full qualification
+    $text_with_only_functions =~ s/\$\w+->//g;            # Strip method call on object
 
     # it's wrapped in a pod style B<>, or some other formatting, strip it
-    $text_with_only_functions =~ s/[[:upper:]]<//gxsaa;
+    $text_with_only_functions =~ s/[[:upper:]]<//g;
     $text_with_only_functions =~ tr/>//d;
 
     my @all_funcs;
 
     #Handle nimrods who separate functions with whitespace
     if ( index( $text_with_only_functions, q{,} ) >= 0 ) {
-        $text_with_only_functions =~ s/\s*//gxsaa;    #Strip whitespace
-        @all_funcs = split( m/,/xsaa, $text_with_only_functions );
+        $text_with_only_functions =~ s/\s*//g;    #Strip whitespace
+        @all_funcs = split( m/,/, $text_with_only_functions );
     }
     else {
-        $text_with_only_functions =~ s/\A\s*//xsaa;    #Strip leading whitespace
-        $text_with_only_functions =~ s/\s*\z//xsaa;    #Strip trailing whitespace
-        @all_funcs = split( m/\s/xsaa, $text_with_only_functions );
+        $text_with_only_functions =~ s/\A\s*//;    #Strip leading whitespace
+        $text_with_only_functions =~ s/\s*\z//;    #Strip trailing whitespace
+        @all_funcs = split( m/\s/, $text_with_only_functions );
     }
 
     my %has_args           = map  { $_ => 1 } @funcs_with_args;
@@ -121,7 +122,7 @@ sub _heading {
 
     if ( scalar(@funcs_with_args) == scalar(@args) ) {
         my %fargs;
-        @fargs{@funcs_with_args} = map { [ split( m/,/xsaa, $_ ) ] } @args;
+        @fargs{@funcs_with_args} = map { [ split( m/,/, $_ ) ] } @args;
         $self->{'current_function_map'} = {
             'all'    => \@all_funcs,
             'noargs' => \@funcs_without_args,
@@ -148,15 +149,15 @@ against the functions of the heading above it.  Returns 1.
 
 sub textblock {
     my ( $self, $text ) = @_;
-    return 1 if $text !~ m/\S/xsaa;
+    return 1 if $text !~ m/\S/;
 
-    if ( $text =~ m/return/ixsaa ) {
-        $text =~ s/return[^\n]//gixsaa;
-        my $is_class = $text =~ s/(?:object|instance|class|new)//gixsaa ? 'CLASS ' : '';
-        $text =~ s/\s//gxsaa;
+    if ( $text =~ m/return/i ) {
+        $text =~ s/return[^\n]//gi;
+        my $is_class = $text =~ s/(?:object|instance|class|new)//gi ? 'CLASS ' : '';
+        $text =~ s/\s//g;
         $self->{'current_function_map'}->{'returns'} = $is_class . $text;
     }
-    elsif ( $text =~ m/die|terminate|croak|confess|exit/ixsaa ) {
+    elsif ( $text =~ m/die|terminate|croak|confess|exit/i ) {
         $self->{'current_function_map'}->{'terms'} = $text;
     }
     return 1;

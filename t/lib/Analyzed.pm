@@ -138,4 +138,16 @@ sub dies {
 # Built the way Moo builds its accessors: from a string, with no source file.
 eval 'sub evaled { my ($self, $value) = @_; return $value }; 1' or die $@;
 
+# A termination that skips END blocks, and a warning with a stack trace that is not a termination.
+use POSIX ();
+
+sub exits_hard {
+    POSIX::_exit(1);
+}
+
+sub clucks {
+    Carp::cluck(q{only a warning});
+    return;
+}
+
 1;
