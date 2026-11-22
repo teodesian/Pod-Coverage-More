@@ -8,6 +8,7 @@ use warnings FATAL => q{all};
 use re q{/xsaa};
 
 use List::Util qw{any none};
+use mro;
 use Package::Stash;
 use Pod::Find       qw(pod_where);
 use Types::Standard qw{Any ArrayRef CodeRef GlobRef HashRef ScalarRef Str};
@@ -66,6 +67,11 @@ Then the sigils are compared with those of the parameters, and no C<=item> is ne
 
 Each check applies to the public subs that have a section in the POD.
 A sub without one is the business of C<coverage>.
+The code of a stub, a sub with no signature that reads nothing of C<@_>, such as a default that subclasses override,
+shows nothing of its arguments, and neither does an XS sub; so the argument checks take their POD on the author's word.
+A sub with a signature, even an empty one, declares its arguments, and they are checked.
+A sub that a parent class documents counts as documented, as L<Pod::Coverage::CountParents> counts it,
+and the checks compare its own code with the section of the parent.
 
 =over 4
 
@@ -118,8 +124,10 @@ sub coverage {
     }
 
     print "tying shoelaces\n" if $TRACE_ALL;
-    foreach my $pod ( $doc->identifiers ) {
-        $symbols{$pod} = 1 if exists $symbols{$pod};
+    foreach my $documentation ( $self->_documentations ) {
+        foreach my $pod ( $documentation->identifiers ) {
+            $symbols{$pod} = 1 if exists $symbols{$pod};
+        }
     }
     foreach my $sym ( keys %symbols ) {
         $symbols{$sym} = 1 if $self->_trustme_check($sym);
@@ -153,13 +161,13 @@ Returns nothing when there is no POD to rate, and C<why_unrated> says why.
 sub coverage_report {
     my $self = shift;
     return $self->{report} if $self->{report};
-    my $doc      = $self->_documentation or return;
+    return                 if !$self->_documentation;
     my $analysis = $self->_analysis;
 
     my %report;
     foreach my $name ( sort $self->_get_syms( $self->{package} ) ) {
-        my $section = $doc->section_for($name) or next;
-        my $rec     = $analysis->{$name}       or next;
+        my $section = $self->_section_for($name) or next;
+        my $rec     = $analysis->{$name}         or next;
         my %failures;
         foreach my $check (@CHECKS) {
             my $method = "_check_$check";
@@ -214,8 +222,8 @@ sub _accepted_names {
     my ($rec) = @_;
     my @names;
     foreach my $param ( @{ $rec->{params} } ) {
-        push @names, $param->{name} if defined $param->{name};
-        push @names, @{ $param->{keys} || [] };
+        push @names, $param->{name}            if defined $param->{name};
+        push @names, @{ $param->{keys} || [] } if !_is_invocant( $rec, $param );
     }
     foreach my $param ( @{ $rec->{declared}{params} || [] } ) {
         push @names, $param->{name}  if defined $param->{name};
@@ -224,8 +232,27 @@ sub _accepted_names {
     return _bare_names(@names);
 }
 
+# Whether PARAM is the object or class that a method is called on, whose keys are its fields and not named arguments.
+sub _is_invocant {
+    my ( $rec, $param ) = @_;
+    return 1 if $param->{source} eq 'invocant';
+    my $name = $param->{name} // return 0;
+    return 1 if $name =~ m/\A\$(?:self|class|proto)\z/;
+    return @{ $rec->{usage}{$name}{methods} || [] } ? 1 : 0;
+}
+
+# Whether the code of a sub shows nothing of its arguments: an XS sub or a constant, or a stub with no signature
+# that reads nothing of @_, as a default that subclasses override.  Its POD names its arguments on the author's word.
+sub _is_stub {
+    my ($rec) = @_;
+    return 1 if $rec->{kind} ne 'perl';
+    return 0 if $rec->{signature} || $rec->{reads_args} || @{ $rec->{params} } || @{ $rec->{declared}{params} || [] };
+    return 1;
+}
+
 sub _check_arguments {
     my ( $self, $name, $section, $rec ) = @_;
+    return if _is_stub($rec);
     my $args     = $section->{args}{$name} or return;
     my @accepted = _accepted_names($rec);
     my @failures;
@@ -239,14 +266,15 @@ our %SIGIL_TYPES = ( '$' => 'scalar', '@' => 'array', '%' => 'hash' );
 
 sub _check_argument_types {
     my ( $self, $name, $section, $rec ) = @_;
+    return if _is_stub($rec);
     my $args   = $section->{args}{$name} or return;
     my @params = grep { defined } map { $_->{name} } @{ $rec->{params} };
 
-    # Strategy 1: the POD wrote each argument with its sigil, so it must match the parameter exactly.
+    # Strategy 1: the POD wrote each argument with its sigil, so it must match the sigil of the parameter, in any case.
     if ( any { m/\A[\$*\\@%&|]/ } @$args ) {
         my @failures;
         foreach my $arg ( map { s/\A\\[\$*@%&|]/\$/r } @$args ) {
-            push @failures, "Var Type Mismatch for function $name: $arg not in @params" if none { $_ eq $arg } @params;
+            push @failures, "Var Type Mismatch for function $name: $arg not in @params" if none { lc($_) eq lc($arg) } @params;
         }
         return @failures;
     }
@@ -330,10 +358,13 @@ sub _check_returns {
 
     my @failures;
     my %seen;
-    my @checked = ( ( map { [ $_->{constraint}, "line $_->{line}", $_->{weak} ] } grep { $_->{constraint} } @returned ), ( map { [ $_, 'declared', 0 ] } @declared ) );
+    my @checked = ( ( map { [ $_->{constraint}, "line $_->{line}", $_->{weak}, $_ ] } grep { $_->{constraint} } @returned ), ( map { [ $_, 'declared', 0 ] } @declared ) );
     foreach my $returned (@checked) {
-        my ( $type, $where, $weak ) = @$returned;
+        my ( $type, $where, $weak, $evidence ) = @$returned;
         next if _covered( $type, \@documented );
+
+        # A literal is one value, which can satisfy a type that its own type is no subtype of, as 1 satisfies Bool.
+        next if $evidence && exists $evidence->{value} && _value_covered( $evidence->{value}, \@documented );
 
         # The type of the result of an operator is weak: overloading can change it, so it fails only when it contradicts.
         next if $weak && any { !_contradicts( $_, $type ) } @documented;
@@ -347,6 +378,14 @@ sub _check_returns {
 sub _all_nothing {
     my (@statements) = @_;
     return ( any { $_->{nothing} } @statements ) && ( none { @{ $_->{types} } } @statements );
+}
+
+sub _value_covered {
+    my ( $value, $documented ) = @_;
+    foreach my $candidate (@$documented) {
+        return 1 if $candidate->check($value);
+    }
+    return 0;
 }
 
 sub _covered {
@@ -414,6 +453,32 @@ sub _documentation {
     print "parsing '$pod_from'\n" if $TRACE_ALL;
     my @subs = Package::Stash->new($package)->list_all_symbols('CODE');
     return $self->{documentation} = Pod::Coverage::More::Documentation->new( subs => \@subs )->parse_file($pod_from);
+}
+
+# The documentation of the package, then of each of its parent classes, as Pod::Coverage::CountParents reads them.
+sub _documentations {
+    my $self = shift;
+    return @{ $self->{documentations} } if $self->{documentations};
+    my $own            = $self->_documentation or return;
+    my @documentations = ($own);
+    foreach my $parent ( @{ mro::get_linear_isa( $self->{package} ) } ) {
+        next if $parent eq $self->{package};
+        my $file = pod_where( { -inc => 1 }, $parent ) or next;
+        my @subs = Package::Stash->new($parent)->list_all_symbols('CODE');
+        push @documentations, Pod::Coverage::More::Documentation->new( subs => \@subs )->parse_file($file);
+    }
+    $self->{documentations} = \@documentations;
+    return @documentations;
+}
+
+# The section that documents the sub NAME: the package's own, or else that of the nearest parent class that documents it.
+sub _section_for {
+    my ( $self, $name ) = @_;
+    foreach my $documentation ( $self->_documentations ) {
+        my $section = $documentation->section_for($name);
+        return $section if $section;
+    }
+    return;
 }
 
 # Analyze every sub of the package once, from its compiled op tree.

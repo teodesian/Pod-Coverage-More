@@ -56,6 +56,11 @@ Then the sigils are compared with those of the parameters, and no `=item` is nee
 
 Each check applies to the public subs that have a section in the POD.
 A sub without one is the business of `coverage`.
+The code of a stub, a sub with no signature that reads nothing of `@_`, such as a default that subclasses override,
+shows nothing of its arguments, and neither does an XS sub; so the argument checks take their POD on the author's word.
+A sub with a signature, even an empty one, declares its arguments, and they are checked.
+A sub that a parent class documents counts as documented, as [Pod::Coverage::CountParents](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3ACountParents) counts it,
+and the checks compare its own code with the section of the parent.
 
 - **arguments** - each argument that the POD names is a parameter of the sub: a variable assigned from `@_`,
 a parameter of a signature, a key of a hash of named arguments, or a parameter that a class builder or a signature module declares

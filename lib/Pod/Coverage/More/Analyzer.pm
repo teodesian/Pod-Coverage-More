@@ -232,6 +232,10 @@ or was compiled in a file other than the one that PACKAGE was loaded from, as an
 
 =item B<method> - BOOLEAN - true for a C<method> of the core class feature, whose parameter 0 is the implicit C<$self>
 
+=item B<signature> - BOOLEAN - true when the sub has a signature, even an empty one
+
+=item B<reads_args> - BOOLEAN - true when the body reads C<@_> in any way: a shift of it, an element, or the whole array
+
 =item B<params> - ARRAYREF - one HASHREF per parameter, in order: C<name> (undef when it has none), C<index>, C<source> (C<shift>, C<list>, C<element>, C<signature>, C<invocant>, or C<checked> for a parameter that a call such as C<< $check->(@_) >> returns), C<slurpy>, C<optional>, C<default>, C<keys>,
 C<inferred>, the L<Type::Tiny> constraint that the uses of the parameter in the body amount to, or undef,
 and C<declared>, a constraint that the code declares for it, with C<declared_by>, what declared it:
@@ -255,15 +259,17 @@ sub analyze_sub {
 
     my $cv  = B::svref_2object($code);
     my %rec = (
-        name      => $name,
-        package   => $package,
-        file      => $cv->FILE,
-        generated => _is_generated( $cv, $name, $package ),
-        method    => 0,
-        params    => [],
-        usage     => {},
-        returns   => [],
-        dies      => [],
+        name       => $name,
+        package    => $package,
+        file       => $cv->FILE,
+        generated  => _is_generated( $cv, $name, $package ),
+        method     => 0,
+        signature  => 0,
+        reads_args => 0,
+        params     => [],
+        usage      => {},
+        returns    => [],
+        dies       => [],
     );
 
     if ( $cv->CvFLAGS & B::CVf_CONST ) {
@@ -349,6 +355,7 @@ sub op_handlers {
         padsv      => \&_on_pad,
         padav      => \&_on_pad,
         padhv      => \&_on_pad,
+        rv2av      => \&_on_rv2av,
         multideref => \&_on_multideref,
         helem      => \&_on_helem,
         exists     => \&_on_exists,
@@ -936,11 +943,19 @@ sub _note_guard {
     return;
 }
 
+# Any use of @_, as a sub that only passes it on makes.
+sub _on_rv2av {
+    my ( $self, $op ) = @_;
+    $self->{rec}{reads_args} = 1 if $self->_is_args_array($op);
+    return;
+}
+
 # A shift of @_ that is not assigned to a variable, as in shift->method.
 sub _on_shift {
     my ( $self, $op ) = @_;
-    return if $self->{consumed}{$$op};
     return unless $self->_is_args_shift($op);
+    $self->{rec}{reads_args} = 1;
+    return if $self->{consumed}{$$op};
     $self->_add_param( name => undef, index => $self->{shifted}++, source => 'shift' );
     return;
 }
@@ -959,8 +974,9 @@ sub _elem_index {
 # $_[N] used directly.
 sub _on_aelemfast {
     my ( $self, $op ) = @_;
-    return if $self->{consumed}{$$op};
     return unless $self->_is_args_elem($op);
+    $self->{rec}{reads_args} = 1;
+    return if $self->{consumed}{$$op};
     my $index = _elem_index($op);
     return if $index < 0;
     $self->_add_param( name => undef, index => $index, source => 'element' );

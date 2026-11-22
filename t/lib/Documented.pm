@@ -217,4 +217,79 @@ sub weak_contradicted {
     return $x + 1;
 }
 
+=head2 shouty(%ARGS)
+
+The arguments in upper case, as POD often writes them.
+
+=cut
+
+sub shouty {
+    my (%args) = @_;
+    return;
+}
+
+=head2 flag(x)
+
+=over 4
+
+=item x - Any - anything
+
+=back
+
+Returns Bool.
+
+=cut
+
+sub flag {
+    my ($x) = @_;
+    return $x ? 1 : 0;
+}
+
+=head2 not_flag
+
+Returns Bool.
+
+=cut
+
+sub not_flag {
+    return 5;
+}
+
+=head2 field_reader(colour)
+
+=over 4
+
+=item colour - Str - a field of the object, which is no argument
+
+=back
+
+Returns the colour.
+
+=cut
+
+sub field_reader {
+    my ($self) = @_;
+    return $self->{colour};
+}
+
+=head2 stub(thing)
+
+A default that a subclass overrides, which ignores its argument.
+
+=cut
+
+sub stub {
+    return;
+}
+
+=head2 empty_signature(thing)
+
+Its signature says that it takes nothing.
+
+=cut
+
+sub empty_signature () {
+    return;
+}
+
 1;

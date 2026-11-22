@@ -53,14 +53,14 @@ sub default_mode {
 
 # A method of the core class feature takes an implicit $self, which argcheck does not count.
 sub finish_sub {
-    my ( $self, $rec ) = @_;
-    $self->SUPER::finish_sub($rec);
+    my ( $self, $record ) = @_;
+    $self->SUPER::finish_sub($record);
     return if !( $self->{cv}->CvFLAGS & B::CVf_IsMETHOD );
-    $rec->{method} = 1;
-    foreach my $param ( @{ $rec->{params} } ) {
+    $record->{method} = 1;
+    foreach my $param ( @{ $record->{params} } ) {
         $param->{index}++ if $param->{source} eq q{signature};
     }
-    $self->_add_invocant($rec);
+    $self->_add_invocant($record);
     return;
 }
 

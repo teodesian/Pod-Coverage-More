@@ -169,7 +169,7 @@ our $TERMINATION       = do { my $words = join q{|}, @TERMINATION_WORDS; qr/\b(?
 our $CLASS_NAME = qr/['"]?([\w:]+)['"]?/;
 
 # A class name that starts with a capital, followed by "object" or "instance", as in "a new Foo object".
-our $CLASS_OBJECT = qr/(?=['"]?[[:upper:]])$CLASS_NAME\s+(?:object|instance)\b/i;
+our $CLASS_OBJECT = qr/(?-i:(?=['"]?[[:upper:]]))$CLASS_NAME\s+(?:object|instance)\b/i;
 
 our %LEVEL = ( head1 => 1, head2 => 2, head3 => 3, head4 => 4, method => 2, func => 2, attr => 2 );
 
