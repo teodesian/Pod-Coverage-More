@@ -53,6 +53,18 @@ A word that is neither starts the description.
 A blurb sits above C<sub>, and above the keywords C<method>, C<fun> and C<func> that the class feature,
 L<Object::Pad>, L<Function::Parameters> and L<Kavorka> define.
 
+=head1 PERL::CRITIC
+
+An C<@example> line is code in a comment, on purpose.  The policy L<Perl::Critic::Policy::Bangs::ProhibitCommentedOutCode>
+reports such a line as commented-out code when it has an assignment, as C<# @example my $four = double(2);> has.
+If your profile enables that policy, set its pattern so that a comment that starts with C<@example> is no code:
+
+    [Bangs::ProhibitCommentedOutCode]
+    commentedcoderegex = \A(?!\#\s*\@example\b).*\$[A-Za-z_].*=
+
+This is the default pattern of the policy, anchored at the start of the comment.
+An assignment in any other comment is still code.
+
 =head1 BLURBS
 
 C<read_file> and C<read_string> return a HASHREF from the name of each sub with a blurb to a HASHREF with:
