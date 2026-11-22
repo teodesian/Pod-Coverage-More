@@ -32,9 +32,9 @@ sub op_handlers {
 
 # A placeholder parameter ($ or $=) has no argelem op, so only argcheck's count shows it.
 sub finish_sub {
-    my ( $self, $rec ) = @_;
+    my ( $self, $record ) = @_;
     my $signature = $self->{signature} or return;
-    my %seen      = map { $_->{index} => 1 } @{ $rec->{params} };
+    my %seen      = map { $_->{index} => 1 } @{ $record->{params} };
     foreach my $index ( 0 .. $signature->{params} - 1 ) {
         next if $seen{$index};
         $self->_add_param(
@@ -50,6 +50,7 @@ sub finish_sub {
 sub _on_argcheck {
     my ( $self, $op ) = @_;
     my ( $params, $optional, $slurpy ) = $op->aux_list( $self->{cv} );
+    $self->{rec}{signature} = 1;
     $self->{signature} = { params => $params, mandatory => $params - $optional, slurpy => $slurpy };
     return;
 }

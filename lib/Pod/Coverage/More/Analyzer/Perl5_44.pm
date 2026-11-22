@@ -35,16 +35,17 @@ sub op_handlers {
 # The placeholders that Perl5_36 fills in from argcheck are listed in multiparam itself,
 # and so is the implicit $self of a method of the core class feature.
 sub finish_sub {
-    my ( $self, $rec ) = @_;
+    my ( $self, $record ) = @_;
     return if !( $self->{cv}->CvFLAGS & B::CVf_IsMETHOD );
-    $rec->{method} = 1;
-    $self->_add_invocant($rec);
+    $record->{method} = 1;
+    $self->_add_invocant($record);
     return;
 }
 
 sub _on_multiparam {
     my ( $self, $op ) = @_;
     my ( $min, $max, $slurpy, @rest ) = $op->aux_list( $self->{cv} );
+    $self->{rec}{signature} = 1;
     my @padix = splice( @rest, 0, $max );
     my ($slurpy_padix) = @rest;
 

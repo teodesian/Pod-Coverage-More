@@ -226,6 +226,16 @@ subtest numbers => sub {
     is( returns_with_weakness( $subs->{listed} ), [q{Int}],                             "the count of an array is an Int, which no overloading changes" );
 };
 
+subtest reads_args_and_signature => sub {
+    is( $subs->{shifted}{reads_args},     1, "a sub that shifts \@_ reads it" );
+    is( $subs->{elements}{reads_args},    1, "so does one that reads \$_[N]" );
+    is( $subs->{calls}{reads_args},       1, "and one that passes \@_ on" );
+    is( $subs->{bare_return}{reads_args}, 0, "a sub that never touches \@_ does not" );
+    my $signed = $analyzer->analyze_package(q{Signed});
+    is( $signed->{empty}{signature}, 1, "an empty signature is a signature" );
+    is( $subs->{shifted}{signature}, 0, "and a sub without one has none" );
+};
+
 subtest generated => sub {
     require Installed;
     my $installed = $analyzer->analyze_package(q{Installed});

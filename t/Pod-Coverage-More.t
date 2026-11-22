@@ -52,26 +52,41 @@ subtest coverage_report => sub {
     my $report = Pod::Coverage::More->new( package => 'Documented' )->coverage_report;
     my %failures;
     foreach my $name ( keys %$report ) {
-        foreach my $check ( grep { $_ ne q{examples} } keys %{ $report->{$name}{failures} } ) {
+        foreach my $check ( sort grep { $_ ne q{examples} } keys %{ $report->{$name}{failures} } ) {
             push @{ $failures{$name} }, map { "[$check] $_" } @{ $report->{$name}{failures}{$check} };
         }
     }
-    is( $failures{good},                         [],                                                                                                                    "POD that says everything passes every check" );
-    is( $failures{narrower},                     [],                                                                                                                    "a documented type narrower than the declared one passes" );
-    is( $failures{maybe_return},                 [],                                                                                                                    "documented return types that cover every returned type pass" );
-    is( $failures{first_of},                     [],                                                                                                                    "an item whose name starts with another argument documents its own argument" );
-    is( $failures{woven},                        [],                                                                                                                    "a section under =method passes, and a deeper heading stays part of it" );
-    is( $failures{overloaded_double},            [],                                                                                                                    "a documented object passes against the result of an operator, which overloading can make an object" );
-    is( $failures{weak_contradicted},            ['[returns] Return type mismatch for weak_contradicted: returns Num (line 217), documented as HashRef'],               "but the result of an operator still fails against a type of another kind" );
-    is( $failures{broader},                      ['[argument_types] Type mismatch for arg count of broader: documented Num, but Type::Tiny declares Int'],              "a documented type broader than the declared one fails" );
-    is( $failures{contradicted},                 ['[argument_types] Type mismatch for arg list of contradicted: documented HashRef, but the code uses it as ArrayRef'], "a documented type of another kind than the code uses fails" );
-    is( $failures{undocumented_return},          ['[returns] No return value documented for undocumented_return'],                                                      "a sub that returns a value must say so" );
-    is( $failures{wrong_return},                 ['[returns] Return type mismatch for wrong_return: returns ArrayRef (line 101), documented as HashRef'],               "a returned type that the documented ones do not cover fails" );
-    is( $failures{says_nothing},                 ['[returns] says_nothing is documented to return nothing, but it returns a value'],                                    "POD that says it returns nothing must be right" );
-    is( $failures{dies_quietly},                 ['[termination] dies_quietly can terminate (die at line 138), but its POD does not say so'],                           "a sub that dies must say so" );
-    is( $failures{second_of},                    ['[argument_types] No type declared for arg dog of second_of'],                                                        "an item whose type is not a type has no type, and documents only its own argument" );
-    is( $report->{good}{failures}{examples},     [],                                                                                                                    "a verbatim call is an example" );
-    is( $report->{narrower}{failures}{examples}, ['No example of narrower in its POD'],                                                                                 "a section with no verbatim call has no example" );
+    is( $failures{good},                         [],                                                                                                                                                      "POD that says everything passes every check" );
+    is( $failures{narrower},                     [],                                                                                                                                                      "a documented type narrower than the declared one passes" );
+    is( $failures{maybe_return},                 [],                                                                                                                                                      "documented return types that cover every returned type pass" );
+    is( $failures{first_of},                     [],                                                                                                                                                      "an item whose name starts with another argument documents its own argument" );
+    is( $failures{woven},                        [],                                                                                                                                                      "a section under =method passes, and a deeper heading stays part of it" );
+    is( $failures{overloaded_double},            [],                                                                                                                                                      "a documented object passes against the result of an operator, which overloading can make an object" );
+    is( $failures{weak_contradicted},            ['[returns] Return type mismatch for weak_contradicted: returns Num (line 217), documented as HashRef'],                                                 "but the result of an operator still fails against a type of another kind" );
+    is( $failures{shouty},                       [],                                                                                                                                                      "a list of arguments with sigils matches in any case" );
+    is( $failures{flag},                         [],                                                                                                                                                      "a literal satisfies a documented type by its value, as 1 and 0 are Bool" );
+    is( $failures{not_flag},                     ['[returns] Return type mismatch for not_flag: returns Int (line 255), documented as Bool'],                                                             "and a literal that does not satisfy it fails" );
+    is( $failures{field_reader},                 ['[arguments] Var Mismatch for function field_reader: colour not in self'],                                                                              "a key of the object is a field, and no named argument" );
+    is( $failures{stub},                         [],                                                                                                                                                      "the POD names the arguments of a stub, whose code shows none, on the author's word" );
+    is( $failures{empty_signature},              [ '[argument_types] Var thing not documented whatsoever for empty_signature!', '[arguments] Var Mismatch for function empty_signature: thing not in ' ], "but an empty signature declares that the sub takes nothing" );
+    is( $failures{broader},                      ['[argument_types] Type mismatch for arg count of broader: documented Num, but Type::Tiny declares Int'],                                                "a documented type broader than the declared one fails" );
+    is( $failures{contradicted},                 ['[argument_types] Type mismatch for arg list of contradicted: documented HashRef, but the code uses it as ArrayRef'],                                   "a documented type of another kind than the code uses fails" );
+    is( $failures{undocumented_return},          ['[returns] No return value documented for undocumented_return'],                                                                                        "a sub that returns a value must say so" );
+    is( $failures{wrong_return},                 ['[returns] Return type mismatch for wrong_return: returns ArrayRef (line 101), documented as HashRef'],                                                 "a returned type that the documented ones do not cover fails" );
+    is( $failures{says_nothing},                 ['[returns] says_nothing is documented to return nothing, but it returns a value'],                                                                      "POD that says it returns nothing must be right" );
+    is( $failures{dies_quietly},                 ['[termination] dies_quietly can terminate (die at line 138), but its POD does not say so'],                                                             "a sub that dies must say so" );
+    is( $failures{second_of},                    ['[argument_types] No type declared for arg dog of second_of'],                                                                                          "an item whose type is not a type has no type, and documents only its own argument" );
+    is( $report->{good}{failures}{examples},     [],                                                                                                                                                      "a verbatim call is an example" );
+    is( $report->{narrower}{failures}{examples}, ['No example of narrower in its POD'],                                                                                                                   "a section with no verbatim call has no example" );
+};
+
+subtest inherited_documentation => sub {
+    require Descendant;
+    my $pc = Pod::Coverage::More->new( package => 'Descendant' );
+    is( $pc->coverage, 1, "a sub that a parent class documents counts as documented" );
+    my $hook = $pc->coverage_report->{hook};
+    is( $hook->{section}{heading},                                               'hook(record)', "and the checks read the section of the parent" );
+    is( [ map { @{ $hook->{failures}{$_} } } sort keys %{ $hook->{failures} } ], [],             "against the code of the override" );
 };
 
 subtest coverage_methods => sub {

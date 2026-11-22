@@ -84,6 +84,7 @@ subtest returns => sub {
         'Returns HashRef[Str] or undef when empty.' => ['HashRef[Str] or Undef'],
         'Returns MIXED: 1 or 0'                     => ['Any'],
         'Returns the output of the other function.' => [q{}],
+        'Returns an analyzer object.'               => [q{}],
     );
     foreach my $text ( sort keys %expected ) {
         my $doc = read_pod( undef, '=head2 one', $text );
