@@ -28,7 +28,7 @@ subtest sections => sub {
 };
 
 subtest section => sub {
-    is( $pod{make}, <<'POD', "the blurb, with the keys of the named arguments, and the object that the code blesses" );
+    is( $pod{make}, <<'POD', "the blurb, with the keys of the named arguments, and an object of the class that the code blesses into, its invocant" );
 =head2 make(size, colour)
 
 Make a widget from named options.
@@ -41,7 +41,7 @@ Make a widget from named options.
 
 =back
 
-Returns Object.
+Returns a Blurbed object.
 
 Dies when the size is negative.
 

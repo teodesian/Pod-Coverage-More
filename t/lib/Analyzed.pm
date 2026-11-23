@@ -158,4 +158,9 @@ sub defaulted {
     return [ $x, $y, $z ];
 }
 
+sub chosen_class {
+    my ( $self, $kind ) = @_;
+    return bless {}, $kind;
+}
+
 1;

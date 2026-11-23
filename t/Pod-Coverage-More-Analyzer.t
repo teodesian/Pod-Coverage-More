@@ -145,9 +145,12 @@ subtest returns => sub {
 };
 
 subtest objects => sub {
-    is( returns_of( $subs->{fixed_class} ),   ['object class=Some::Class'], "bless with a literal class" );
-    is( returns_of( $subs->{one_arg_bless} ), ['object class=Analyzed'],    "bless with one argument blesses into the package" );
-    is( returns_of( $subs->{constructor} ),   ['object class_from=$class'], "bless into ref(\$class) || \$class takes the class from \$class" );
+    is( returns_of( $subs->{fixed_class} ),                               ['object class=Some::Class'],                "bless with a literal class" );
+    is( returns_of( $subs->{one_arg_bless} ),                             ['object class=Analyzed'],                   "bless with one argument blesses into the package" );
+    is( returns_of( $subs->{constructor} ),                               ['object class=Analyzed class_from=$class'], "bless into ref(\$class) || \$class takes the class from \$class" );
+    is( constraint_names( $subs->{constructor}{returns}, 'constraint' ),  ['InstanceOf["Analyzed"]'],                  "which is the invocant, so the object is an instance of the package" );
+    is( returns_of( $subs->{chosen_class} ),                              ['object class_from=$kind'],                 "bless into another argument takes the class from it" );
+    is( constraint_names( $subs->{chosen_class}{returns}, 'constraint' ), ['Object'],                                  "and the object is of any class" );
 };
 
 subtest dies => sub {
