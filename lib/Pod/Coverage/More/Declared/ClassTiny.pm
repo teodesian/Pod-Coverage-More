@@ -18,23 +18,22 @@ Class::Tiny has no types and no required attributes, so these declarations have 
 
 =head1 METHODS
 
-=head2 applies_to(PACKAGE)
-
-Returns true when Class::Tiny built PACKAGE.
-
 =cut
 
+# Whether L<Class::Tiny> built C<package>.
+# @param   package  Str  the name of the package
+# @returns Bool
+# @example next if !Pod::Coverage::More::Declared::ClassTiny->applies_to('Some::Class');
 sub applies_to {
     my ( $class, $package ) = @_;
     return ( $INC{'Class/Tiny.pm'} && $package->isa('Class::Tiny::Object') ) ? 1 : 0;
 }
 
-=head2 declarations(PACKAGE, NAMES)
-
-Returns the declarations of the subs of PACKAGE that the ARRAYREF NAMES lists, as L<Pod::Coverage::More::Declared> describes them.
-
-=cut
-
+# The declarations of the subs of C<package> that C<names> lists, as L<Pod::Coverage::More::Declared> describes them.
+# @param   package  Str            the name of the package
+# @param   names    ArrayRef[Str]  the names of the subs
+# @returns HashRef  from the name of each declared sub to its declaration
+# @example my $declared = Pod::Coverage::More::Declared::ClassTiny->declarations( 'Some::Class', ['new'] );
 sub declarations {
     my ( $class, $package, $names ) = @_;
     my %own        = map { $_ => 1 } @$names;

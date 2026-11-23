@@ -47,15 +47,13 @@ The sections follow the forms that L<Pod::Coverage::More::Documentation> reads, 
 
 =head1 METHODS
 
-=head2 new(%ARGS)
-
-Returns a generator for the package C<package>, which must be loaded.
-The blurbs come from the file C<file>, which is the file that the package was loaded from by default.
-
-    my $generator = Pod::Coverage::More::Generator->new( package => 'Some::Module', file => 'lib/Some/Module.pm' );
-
 =cut
 
+# A generator for the package C<package>, which must be loaded.
+# @param   package  Str  the name of the package
+# @param   file     Str  optional: the file to read the blurbs from, by default the file that the package was loaded from
+# @returns Object  the generator, a Pod::Coverage::More::Generator object
+# @example my $generator = Pod::Coverage::More::Generator->new( package => 'Some::Module', file => 'lib/Some/Module.pm' );
 sub new {
     my ( $class, %args ) = @_;
     my $package = $args{package};
@@ -63,15 +61,10 @@ sub new {
     return bless( { package => $package, file => $file, coverage => Pod::Coverage::More->new( package => $package ) }, $class );
 }
 
-=head2 sections
-
-Returns one HASHREF per sub that gets a section, in the order of the names of the subs:
-C<name>, the name of the sub, and C<pod>, the text of its section, which starts with a C<=head2>.
-
-    my @sections = $generator->sections;
-
-=cut
-
+# One section per sub that gets one, in the order of the names of the subs:
+# a HASHREF with C<name>, the name of the sub, and C<pod>, the text of its section, which starts with a C<=head2>.
+# @returns the sections, as a list
+# @example my @sections = $generator->sections;
 sub sections {
     my ($self)   = @_;
     my $coverage = $self->{coverage};
@@ -98,14 +91,9 @@ sub _parent_has_blurb {
     return 0;
 }
 
-=head2 pod
-
-Returns the text of all the sections, one after another, or the empty string when no sub gets one.
-
-    my $pod = $generator->pod;
-
-=cut
-
+# The text of all the sections, one after another.
+# @returns Str  the POD, or the empty string when no sub gets a section
+# @example my $pod = $generator->pod;
 sub pod {
     my ($self) = @_;
     return join q{}, map { $_->{pod} } $self->sections;

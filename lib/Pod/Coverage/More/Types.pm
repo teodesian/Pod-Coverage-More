@@ -40,6 +40,16 @@ A number whose evidence has a true C<integer>, such as the count of an array, is
 With a true C<maybe_undef> as well, as the length of a string, it is a C<Maybe[Int]>.
 An object whose evidence names C<classes>, as the numbers of the scope of C<use bignum>, is an instance of one of them.
 
+=over 4
+
+=item EVIDENCE - HashRef - the evidence of one value
+
+=back
+
+Returns a Type::Tiny object, or undef when the evidence says nothing of the type.
+
+    my $type = type_of_value( { type => 'number', integer => 1 } );
+
 =cut
 
 sub type_of_value {
@@ -85,6 +95,16 @@ as C<analyze_sub> of L<Pod::Coverage::More::Analyzer> reports them.
 Each kind of reference, and use as a number or as a string, is one alternative,
 because different branches of a sub can use one variable in different ways.
 The methods called on the variable apply to all of them.
+
+=over 4
+
+=item USAGE - HashRef - the uses of one variable
+
+=back
+
+Returns a Type::Tiny object, or undef when the uses say nothing of the type.
+
+    my $type = type_of_usage( { hashref => 1, methods => ['name'] } );
 
 =cut
 
@@ -133,6 +153,16 @@ our %POD_WORDS = (
 Returns the constraint that NAME names.  NAME is either a type word of the POD that L<Pod::Coverage::More> reads,
 in any case, such as C<HASHREF> or C<integer>, or a type expression of L<Types::Standard>, such as C<ArrayRef[Int]>.
 A word for a container, C<ARRAY> or C<HASH>, names a reference to one.
+
+=over 4
+
+=item NAME - Str - a type word or a type expression
+
+=back
+
+Returns a Type::Tiny object, or undef when NAME names no type.
+
+    my $type = type_named('ArrayRef[Int]');
 
 =cut
 

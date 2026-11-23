@@ -43,7 +43,19 @@ Runs one test, named NAME or "POD coverage of MODULE": it passes when the POD do
 as L<Pod::Coverage> counts, and each sub that it documents passes the checks that OPTIONS names.
 A module with no public subs passes, as L<Test::Pod::Coverage> rates it.
 
+=over 4
+
+=item MODULE - Str - the name of the module
+
+=item OPTIONS - HashRef - optional: the options that OPTIONS describes
+
+=item NAME - Str - optional: the name of the test
+
+=back
+
 Returns true when the test passed.
+
+    pod_coverage_more_ok( 'Some::Module', { checks => ['arguments'] }, 'the arguments of Some::Module' );
 
 =cut
 
@@ -85,7 +97,15 @@ sub pod_coverage_more_ok {
 Runs C<pod_coverage_more_ok> for each module under F<blib>, or else under F<lib>, as L<Test::Pod::Coverage> finds them,
 and plans that many tests when nothing planned them yet.
 
+=over 4
+
+=item OPTIONS - HashRef - optional: the options that OPTIONS describes, for every module
+
+=back
+
 Returns true when every test passed.
+
+    all_pod_coverage_more_ok( { checks => [ 'arguments', 'returns' ] } );
 
 =cut
 

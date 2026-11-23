@@ -88,14 +88,13 @@ and C<description>
 
 =head1 METHODS
 
-=head2 read_file(FILE)
-
-Returns the blurbs of the subs in FILE.  Dies when FILE cannot be read.
-
-    my $blurbs = Pod::Coverage::More::Blurb->read_file('lib/Some/Module.pm');
-
 =cut
 
+# The blurbs of the subs in C<file>, as BLURBS describes them.
+# @param   file  Str  the path of the file
+# @returns HashRef  from the name of each sub with a blurb to its blurb
+# @throws  when the file cannot be read
+# @example my $blurbs = Pod::Coverage::More::Blurb->read_file('lib/Some/Module.pm');
 sub read_file {
     my ( $class, $file ) = @_;
     open( my $fh, '<', $file ) or die "Cannot read $file: $!\n";
@@ -105,16 +104,13 @@ sub read_file {
     return $class->read_string($source);
 }
 
-=head2 read_string(SOURCE)
-
-Returns the blurbs of the subs in the perl source SOURCE.
-
-    my $blurbs = Pod::Coverage::More::Blurb->read_string($source);
-
-=cut
-
+# The line that starts a sub, which a blurb sits above, with the name of the sub.
 our $SUB_LINE = qr/\A\s*(?:sub|method|fun|func)\s+(?:\w+::)*(\w+)\b/;
 
+# The blurbs of the subs in the perl source C<source>, as BLURBS describes them.
+# @param   source  Str  the perl source
+# @returns HashRef  from the name of each sub with a blurb to its blurb
+# @example my $blurbs = Pod::Coverage::More::Blurb->read_string($source);
 sub read_string {
     my ( $class, $source ) = @_;
     my @lines = split m/\n/, $source;
