@@ -7,7 +7,8 @@ use 5.036;
 use warnings FATAL => q{all};
 use re q{/xsaa};
 
-use List::Util qw{any none};
+use List::Util      qw{any none};
+use Module::Runtime qw{require_module};
 use mro;
 use Package::Stash;
 use Pod::Find       qw(pod_where);
@@ -447,6 +448,12 @@ sub _documentation {
     my $pod_from = $self->{pod_from};
     unless ($pod_from) {
         $self->{why_unrated} = "couldn't find pod";
+        return;
+    }
+
+    # The headings name subs only once the package is loaded, so load it before reading its symbols.
+    if ( !eval { require_module($package); 1 } ) {
+        $self->{why_unrated} = "requiring '$package' failed";
         return;
     }
 
