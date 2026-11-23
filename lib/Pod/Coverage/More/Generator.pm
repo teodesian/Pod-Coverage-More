@@ -52,7 +52,7 @@ The sections follow the forms that L<Pod::Coverage::More::Documentation> reads, 
 # A generator for the package C<package>, which must be loaded.
 # @param   package  Str  the name of the package
 # @param   file     Str  optional: the file to read the blurbs from, by default the file that the package was loaded from
-# @returns Object  the generator, a Pod::Coverage::More::Generator object
+# @returns Pod::Coverage::More::Generator  the generator
 # @example my $generator = Pod::Coverage::More::Generator->new( package => 'Some::Module', file => 'lib/Some/Module.pm' );
 sub new {
     my ( $class, %args ) = @_;

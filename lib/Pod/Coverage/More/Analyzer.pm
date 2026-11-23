@@ -305,7 +305,11 @@ sub analyze_sub {
     push @{ $rec{returns} }, map { +{ %$_, implicit => 1 } } $walker->_implicit_returns( $cv->ROOT );
     $walker->finish_sub( \%rec );
 
+    # A class taken from the invocant is the package or a subclass, and an object of either is an instance of the package.
+    my ($invocant) = grep { $_->{index} == 0 && defined $_->{name} } @{ $rec{params} };
     foreach my $returned ( @{ $rec{returns} } ) {
+        $returned->{class} //= $package
+          if $invocant && $returned->{type} eq 'object' && ( $returned->{class_from} // q{} ) eq $invocant->{name};
         $returned->{constraint} = type_of_value($returned);
     }
     @{ $rec{params} } = sort { $a->{index} <=> $b->{index} } @{ $rec{params} };

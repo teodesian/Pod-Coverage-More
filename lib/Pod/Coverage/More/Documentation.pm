@@ -82,7 +82,7 @@ C<nothing>, true for "Returns nothing", C<text> and C<line>
 
 # A reader of POD.
 # @param   subs  ArrayRef[Str]  optional: the names of the subs of the package, which tell the headings that document subs from the others
-# @returns Object  the reader, a Pod::Coverage::More::Documentation object
+# @returns Pod::Coverage::More::Documentation  the reader
 # @example my $doc = Pod::Coverage::More::Documentation->new( subs => [ 'resize', 'crop' ] );
 sub new {
     my ( $class, %args ) = @_;
