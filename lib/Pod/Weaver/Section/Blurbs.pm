@@ -60,18 +60,14 @@ has header => ( is => 'ro', isa => 'Str', default => 'METHODS' );
 
 =head1 METHODS
 
-=head2 weave_section(DOCUMENT, INPUT)
-
-Adds the generated sections of the module that INPUT describes to the L<Pod::Elemental> DOCUMENT,
-as L<Pod::Weaver::Role::Section> asks.  INPUT must have C<filename>, the path of the module from the current directory,
-and C<ppi_document>, the module as L<PPI> reads it.  Returns nothing.
-
-Dies when the child perl cannot load the module.
-
-    $section->weave_section( $document, { filename => 'lib/Some/Module.pm', ppi_document => $ppi } );
-
 =cut
 
+# Adds the generated sections of the module that C<input> describes to C<document>, as L<Pod::Weaver::Role::Section> asks.
+# @param   document  Pod::Elemental::Document  the POD that is woven
+# @param   input     HashRef  with C<filename>, the path of the module from the current directory, and C<ppi_document>, the module as L<PPI> reads it
+# @returns nothing
+# @throws  when the child perl cannot load the module
+# @example $section->weave_section( $document, { filename => 'lib/Some/Module.pm', ppi_document => $ppi } );
 sub weave_section {
     my ( $self, $document, $input ) = @_;
     my $file    = $input->{filename}                    or return;

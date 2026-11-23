@@ -22,6 +22,17 @@ sub messages_of {
     return [ sort split m/^/m, $result->{message} // '' ];
 }
 
+subtest coverage => sub {
+    ok( !exists $INC{'FullyDocumented.pm'}, 'nothing loaded the fixture yet' ) or return;
+    my $pc = Pod::Coverage::More->new( package => 'FullyDocumented' );
+    is( $pc->coverage,                           1,          "the subs of a module that the caller did not load count as documented by its POD" );
+    is( [ sort keys %{ $pc->coverage_report } ], ['double'], "and get a report" );
+
+    my $missing = Pod::Coverage::More->new( package => 'No::Such::Bogus' );
+    is( $missing->coverage,    undef,               "a module that is not installed is not rated" );
+    is( $missing->why_unrated, "couldn't find pod", "because it has no POD" );
+};
+
 subtest coverage_arguments => sub {
     my $result = Pod::Coverage::More->new( package => 'Mistyped' )->coverage_arguments;
     is( $result->{status}, 0, "an argument that the sub does not take fails" );

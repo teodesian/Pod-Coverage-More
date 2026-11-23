@@ -78,57 +78,47 @@ C<nothing>, true for "Returns nothing", C<text> and C<line>
 
 =head1 METHODS
 
-=head2 new(%ARGS)
-
-Returns a reader.  The optional C<subs>, an ARRAYREF of the names of the subs of the package, lets it tell the headings
-that document subs from the others.
-
 =cut
 
+# A reader of POD.
+# @param   subs  ArrayRef[Str]  optional: the names of the subs of the package, which tell the headings that document subs from the others
+# @returns Object  the reader, a Pod::Coverage::More::Documentation object
+# @example my $doc = Pod::Coverage::More::Documentation->new( subs => [ 'resize', 'crop' ] );
 sub new {
     my ( $class, %args ) = @_;
     return bless( { subs => $args{subs} ? { map { $_ => 1 } @{ $args{subs} } } : undef, sections => [] }, $class );
 }
 
-=head2 parse_file(FILE)
-
-Reads the POD of FILE, and returns the reader.
-
-=cut
-
+# Reads the POD of C<file>.
+# @param   file  Str  the path of the file
+# @returns Pod::Coverage::More::Documentation  the reader
+# @example my $doc = Pod::Coverage::More::Documentation->new->parse_file('lib/Some/Module.pm');
 sub parse_file {
     my ( $self, $file ) = @_;
     return $self->_read( _parser()->parse_file($file)->root );
 }
 
-=head2 parse_string(POD)
-
-Reads the POD in the string POD, and returns the reader.
-
-=cut
-
+# Reads the POD in the string C<pod>.
+# @param   pod  Str  the POD
+# @returns Pod::Coverage::More::Documentation  the reader
+# @example my $doc = Pod::Coverage::More::Documentation->new->parse_string($pod);
 sub parse_string {
     my ( $self, $pod ) = @_;
     return $self->_read( _parser()->parse_string_document($pod)->root );
 }
 
-=head2 sections
-
-Returns the sections, in the order of the POD.
-
-=cut
-
+# The sections, in the order of the POD, as SECTIONS describes them.
+# @returns the sections, as a list of HASHREFs
+# @example my @headings = map { $_->{heading} } $doc->sections;
 sub sections {
     my ($self) = @_;
     return @{ $self->{sections} };
 }
 
-=head2 section_for(NAME)
-
-Returns the first section whose heading names the sub NAME, or nothing.
-
-=cut
-
+# The first section whose heading names the sub C<name>, or nothing.
+# @param   name  Str  the name of the sub
+# @returns HashRef  the section
+# @example my $section = $doc->section_for('resize');
 sub section_for {
     my ( $self, $name ) = @_;
     foreach my $section ( @{ $self->{sections} } ) {
@@ -137,12 +127,9 @@ sub section_for {
     return;
 }
 
-=head2 identifiers
-
-Returns the names of all the subs that the headings name, as L<Pod::Coverage> counts them as documented.
-
-=cut
-
+# The names of all the subs that the headings name, which L<Pod::Coverage> counts as documented.
+# @returns the names, as a list
+# @example my @documented = $doc->identifiers;
 sub identifiers {
     my ($self) = @_;
     return map { @{ $_->{functions} } } @{ $self->{sections} };
@@ -298,12 +285,10 @@ sub _item {
     return;
 }
 
-=head2 bare_name(NAME)
-
-Returns NAME without its sigils and backslashes, in lower case, as arguments in the POD and parameters in the code are compared.
-
-=cut
-
+# C<name> without its sigils and backslashes, in lower case, as arguments in the POD and parameters in the code are compared.
+# @param   name  Str  an argument or a parameter, such as C<\%Options>
+# @returns Str  the bare name
+# @example my $bare = Pod::Coverage::More::Documentation->bare_name('\%Options');
 sub bare_name {
     my ( $class, $name ) = @_;
     return _bare($name);

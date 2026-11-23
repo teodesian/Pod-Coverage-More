@@ -74,13 +74,11 @@ sub _on_argelem {
     return;
 }
 
-=head2 default_mode(ARGDEFELEM)
-
-Returns how the default of a signature parameter applies, from its C<argdefelem> op.
-5.36 has only C<=>, a default for a missing argument.
-
-=cut
-
+# How the default of a signature parameter applies, from its C<argdefelem> op.
+# 5.36 has only C<=>, a default for a missing argument.  Later version sets read the flags of the op.
+# @param   argdefelem  B::UNOP  the op of the default
+# @returns Str  C<=>, C<//=> or C<||=>
+# @example my $mode = $self->default_mode($argdefelem);
 sub default_mode {
     return '=';
 }

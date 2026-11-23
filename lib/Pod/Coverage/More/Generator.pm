@@ -8,6 +8,7 @@ use warnings FATAL => q{all};
 use re q{/xsaa};
 
 use Module::Runtime qw{module_notional_filename};
+use mro;
 
 use Pod::Coverage::More;
 use Pod::Coverage::More::Blurb;
@@ -23,7 +24,8 @@ use Pod::Coverage::More::Documentation;
 =head1 DESCRIPTION
 
 Writes a POD section for each public sub that has a blurb, as L<Pod::Coverage::More::Blurb> reads it,
-and no POD of its own or of a parent class.  A sub without a blurb gets no section:
+and no POD of its own or of a parent class.  An override of a sub that a parent class has a blurb for gets none either,
+because the section of the parent documents it.  A sub without a blurb gets no section:
 the blurb is how a sub opts in, as C<# ABSTRACT:> is how a module does.
 
 A section says what the blurb says, and fills in what the code declares where the blurb is silent:
@@ -45,15 +47,13 @@ The sections follow the forms that L<Pod::Coverage::More::Documentation> reads, 
 
 =head1 METHODS
 
-=head2 new(%ARGS)
-
-Returns a generator for the package C<package>, which must be loaded.
-The blurbs come from the file C<file>, which is the file that the package was loaded from by default.
-
-    my $generator = Pod::Coverage::More::Generator->new( package => 'Some::Module', file => 'lib/Some/Module.pm' );
-
 =cut
 
+# A generator for the package C<package>, which must be loaded.
+# @param   package  Str  the name of the package
+# @param   file     Str  optional: the file to read the blurbs from, by default the file that the package was loaded from
+# @returns Object  the generator, a Pod::Coverage::More::Generator object
+# @example my $generator = Pod::Coverage::More::Generator->new( package => 'Some::Module', file => 'lib/Some/Module.pm' );
 sub new {
     my ( $class, %args ) = @_;
     my $package = $args{package};
@@ -61,15 +61,10 @@ sub new {
     return bless( { package => $package, file => $file, coverage => Pod::Coverage::More->new( package => $package ) }, $class );
 }
 
-=head2 sections
-
-Returns one HASHREF per sub that gets a section, in the order of the names of the subs:
-C<name>, the name of the sub, and C<pod>, the text of its section, which starts with a C<=head2>.
-
-    my @sections = $generator->sections;
-
-=cut
-
+# One section per sub that gets one, in the order of the names of the subs:
+# a HASHREF with C<name>, the name of the sub, and C<pod>, the text of its section, which starts with a C<=head2>.
+# @returns the sections, as a list
+# @example my @sections = $generator->sections;
 sub sections {
     my ($self)   = @_;
     my $coverage = $self->{coverage};
@@ -78,20 +73,27 @@ sub sections {
     my @sections;
     foreach my $name ( sort $coverage->public_subs ) {
         my $blurb = $blurbs->{$name} or next;
-        next if $coverage->section_for($name);
+        next if $coverage->section_for($name) || $self->_parent_has_blurb($name);
         push @sections, { name => $name, pod => _section( $name, $blurb, $analysis->{$name} ) };
     }
     return @sections;
 }
 
-=head2 pod
+# Whether a parent class has a blurb for the sub NAME, which becomes its section when the parent is woven.
+sub _parent_has_blurb {
+    my ( $self, $name ) = @_;
+    foreach my $parent ( @{ mro::get_linear_isa( $self->{package} ) } ) {
+        next if $parent eq $self->{package};
+        my $file = $INC{ module_notional_filename($parent) } or next;
+        $self->{parent_blurbs}{$parent} //= Pod::Coverage::More::Blurb->read_file($file);
+        return 1 if $self->{parent_blurbs}{$parent}{$name};
+    }
+    return 0;
+}
 
-Returns the text of all the sections, one after another, or the empty string when no sub gets one.
-
-    my $pod = $generator->pod;
-
-=cut
-
+# The text of all the sections, one after another.
+# @returns Str  the POD, or the empty string when no sub gets a section
+# @example my $pod = $generator->pod;
 sub pod {
     my ($self) = @_;
     return join q{}, map { $_->{pod} } $self->sections;

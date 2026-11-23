@@ -67,24 +67,23 @@ our @PROVIDERS = map { "Pod::Coverage::More::Declared::$_" } qw{TypeParams Funct
 
 =head1 METHODS
 
-=head2 invocant(NAME)
-
-Returns the declaration of the invocant of a method, parameter 0, named NAME or with no name, for the providers.
-
 =cut
 
+# The declaration of the invocant of a method, parameter 0, for the providers.
+# @param   name  Maybe[Str]  the name of the invocant, or undef when it has none
+# @returns HashRef  the declaration of the parameter
+# @example my $self = Pod::Coverage::More::Declared->invocant('$self');
 sub invocant {
     my ( $class, $name ) = @_;
     return { name => $name, index => 0, type => undef, optional => 0, invocant => 1 };
 }
 
-=head2 declarations_for(PACKAGE, NAMES)
-
-Returns a HASHREF that maps each sub name in the ARRAYREF NAMES to its declaration, for the subs of PACKAGE that a provider declares.
-When two providers declare the same sub, the first in the list above wins, and a C<body> from a later one fills in a missing one.
-
-=cut
-
+# The declarations of the subs of C<package> that C<names> lists and a provider declares.
+# When two providers declare the same sub, the first in PROVIDERS wins, and a C<body> from a later one fills in a missing one.
+# @param   package  Str            the name of the package
+# @param   names    ArrayRef[Str]  the names of the subs
+# @returns HashRef  from the name of each declared sub to its declaration
+# @example my $declared = Pod::Coverage::More::Declared->declarations_for( 'Some::Class', [ 'new', 'size' ] );
 sub declarations_for {
     my ( $class, $package, $names ) = @_;
     my %declared;

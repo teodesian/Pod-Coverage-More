@@ -75,69 +75,111 @@ makes the result an object of that class, as [Math::GMP](https://metacpan.org/po
 - **termination** - a sub that can die, croak, confess, throw or exit, outside an `eval` or `try`, says so
 - **examples** - the section has a verbatim paragraph that calls the sub, by `name(` or `->name`
 
-# OVERRIDDEN METHODS
-
-## coverage
-
-Returns the fraction of the public subs that the POD documents, as [Pod::Coverage](https://metacpan.org/pod/Pod%3A%3ACoverage) does,
-from the headings that [Pod::Coverage::More::Documentation](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3ADocumentation) reads.
-
 # METHODS
 
-## coverage\_report
-
-Returns a HASHREF from the name of each public sub that has a section in the POD to a HASHREF with `section`,
-the section that `section_for` of [Pod::Coverage::More::Documentation](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3ADocumentation) returns, and `failures`,
-a HASHREF from the name of each check in THE CHECKS to an ARRAYREF of the messages of its failures, empty when it passes.
-
-Returns nothing when there is no POD to rate, and `why_unrated` says why.
-
-## coverage\_arguments
-
-Returns a HASHREF with `status`, true when the **arguments** check passes for every sub, and `message`,
-the messages of its failures, one per line, or undef.  The other methods below return the same for their check.
-
-## coverage\_argument\_types
-
-The **argument\_types** check.
-
-## coverage\_return\_types
-
-The **returns** check.
-
-## coverage\_termination
-
-The **termination** check.
-
-## coverage\_examples
-
-The **examples** check.
-
-## section\_for(NAME)
-
-Returns the section that documents the sub NAME, as `section_for` of [Pod::Coverage::More::Documentation](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3ADocumentation) returns it:
-the section in the POD of the package, or else in that of the nearest parent class that documents it.
-Returns nothing when no POD documents NAME.
-
-```perl
-my $section = $pc->section_for('coverage');
-```
+The other methods of [Pod::Coverage](https://metacpan.org/pod/Pod%3A%3ACoverage), such as `naked`, `covered` and `why_unrated`, work as they do there.
 
 ## analysis
 
-Returns the analysis of every sub of the package, the HASHREF that `analyze_package` of [Pod::Coverage::More::Analyzer](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3AAnalyzer) returns.
-The package is analyzed once.
+The analysis of every sub of the package, as `analyze_package` of [Pod::Coverage::More::Analyzer](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3AAnalyzer) returns it. The package is analyzed once.
+
+Returns HashRef, from the name of each sub to the record of its analysis.
 
 ```perl
 my $records = $pc->analysis;
 ```
 
+## coverage
+
+The fraction of the public subs that the POD documents, as [Pod::Coverage](https://metacpan.org/pod/Pod%3A%3ACoverage) rates it, from the headings that [Pod::Coverage::More::Documentation](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3ADocumentation) reads. Nothing when the package has no POD or no public subs, and `why_unrated` says why.
+
+Returns Num, from 0 to 1.
+
+```perl
+my $rating = $pc->coverage;
+```
+
+## coverage\_argument\_types
+
+The result of the **argument\_types** check, as `coverage_arguments` returns it for its check.
+
+Returns HashRef, with status and message.
+
+```perl
+my $result = $pc->coverage_argument_types;
+```
+
+## coverage\_arguments
+
+The result of the **arguments** check over every sub: a HASHREF with `status`, true when it passes, and `message`, the messages of its failures, one per line, or undef.
+
+Returns HashRef, with status and message.
+
+```perl
+my $result = $pc->coverage_arguments;
+print $result->{message} if !$result->{status};
+```
+
+## coverage\_examples
+
+The result of the **examples** check, as `coverage_arguments` returns it for its check.
+
+Returns HashRef, with status and message.
+
+```perl
+my $result = $pc->coverage_examples;
+```
+
+## coverage\_report
+
+The failures of each check, for each public sub that has a section in the POD: a HASHREF from the name of the sub to a HASHREF with `section`, the section that `section_for` returns, and `failures`, a HASHREF from the name of each check in THE CHECKS to an ARRAYREF of the messages of its failures, empty when it passes. The report is made once.  Nothing when there is no POD to rate, and `why_unrated` says why.
+
+Returns HashRef, the report.
+
+```perl
+my $failures = $pc->coverage_report->{resize}{failures}{examples};
+```
+
+## coverage\_return\_types
+
+The result of the **returns** check, as `coverage_arguments` returns it for its check.
+
+Returns HashRef, with status and message.
+
+```perl
+my $result = $pc->coverage_return_types;
+```
+
+## coverage\_termination
+
+The result of the **termination** check, as `coverage_arguments` returns it for its check.
+
+Returns HashRef, with status and message.
+
+```perl
+my $result = $pc->coverage_termination;
+```
+
 ## public\_subs
 
-Returns the names of the public subs of the package, as [Pod::Coverage](https://metacpan.org/pod/Pod%3A%3ACoverage) counts them: not private, not imported, and not trusted.
+The public subs of the package, as [Pod::Coverage](https://metacpan.org/pod/Pod%3A%3ACoverage) counts them: not private, not imported, and not trusted.
+
+Returns the names of the subs, as a list.
 
 ```perl
 my @names = $pc->public_subs;
+```
+
+## section\_for(name)
+
+The section that documents the sub `name`, as `section_for` of [Pod::Coverage::More::Documentation](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3ADocumentation) returns it: the section in the POD of the package, or else in that of the nearest parent class that documents it. Nothing when no POD documents it.
+
+- name - Str - the name of the sub
+
+Returns HashRef, the section.
+
+```perl
+my $section = $pc->section_for('coverage');
 ```
 
 # SEE ALSO

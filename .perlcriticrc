@@ -72,6 +72,7 @@ strict = 1
 [Bangs::ProhibitUselessRegexModifiers]
 [RegularExpressions::ProhibitIneffectiveModifiers]
 [Bangs::ProhibitCommentedOutCode]
+commentedcoderegex = \A(?!\#\s*\@example\b).*\$[A-Za-z_].*=
 [Tics::ProhibitUseBase]
 [Plicease::ProhibitLeadingZeros]
 [RegularExpressions::ProhibitEmptyAlternatives]

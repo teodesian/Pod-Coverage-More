@@ -7,7 +7,8 @@ use 5.036;
 use warnings FATAL => q{all};
 use re q{/xsaa};
 
-use List::Util qw{any none};
+use List::Util      qw{any none};
+use Module::Runtime qw{require_module};
 use mro;
 use Package::Stash;
 use Pod::Find       qw(pod_where);
@@ -98,15 +99,11 @@ makes the result an object of that class, as L<Math::GMP> does; so such a type f
 
 our @CHECKS = qw{arguments argument_types returns termination examples};
 
-=head1 OVERRIDDEN METHODS
-
-=head2 coverage
-
-Returns the fraction of the public subs that the POD documents, as L<Pod::Coverage> does,
-from the headings that L<Pod::Coverage::More::Documentation> reads.
-
-=cut
-
+# The fraction of the public subs that the POD documents, as L<Pod::Coverage> rates it,
+# from the headings that L<Pod::Coverage::More::Documentation> reads.
+# Nothing when the package has no POD or no public subs, and C<why_unrated> says why.
+# @returns Num  from 0 to 1
+# @example my $rating = $pc->coverage;
 sub coverage {
     my $self = shift;
 
@@ -148,16 +145,16 @@ sub coverage {
 
 =head1 METHODS
 
-=head2 coverage_report
-
-Returns a HASHREF from the name of each public sub that has a section in the POD to a HASHREF with C<section>,
-the section that C<section_for> of L<Pod::Coverage::More::Documentation> returns, and C<failures>,
-a HASHREF from the name of each check in THE CHECKS to an ARRAYREF of the messages of its failures, empty when it passes.
-
-Returns nothing when there is no POD to rate, and C<why_unrated> says why.
+The other methods of L<Pod::Coverage>, such as C<naked>, C<covered> and C<why_unrated>, work as they do there.
 
 =cut
 
+# The failures of each check, for each public sub that has a section in the POD:
+# a HASHREF from the name of the sub to a HASHREF with C<section>, the section that C<section_for> returns, and C<failures>,
+# a HASHREF from the name of each check in THE CHECKS to an ARRAYREF of the messages of its failures, empty when it passes.
+# The report is made once.  Nothing when there is no POD to rate, and C<why_unrated> says why.
+# @returns HashRef  the report
+# @example my $failures = $pc->coverage_report->{resize}{failures}{examples};
 sub coverage_report {
     my $self = shift;
     return $self->{report} if $self->{report};
@@ -178,34 +175,32 @@ sub coverage_report {
     return $self->{report} = \%report;
 }
 
-=head2 coverage_arguments
+# The result of the B<arguments> check over every sub: a HASHREF with C<status>, true when it passes,
+# and C<message>, the messages of its failures, one per line, or undef.
+# @returns HashRef  with status and message
+# @example my $result = $pc->coverage_arguments;
+# @example print $result->{message} if !$result->{status};
+sub coverage_arguments { my ($self) = @_; return $self->_check_result('arguments') }
 
-Returns a HASHREF with C<status>, true when the B<arguments> check passes for every sub, and C<message>,
-the messages of its failures, one per line, or undef.  The other methods below return the same for their check.
-
-=head2 coverage_argument_types
-
-The B<argument_types> check.
-
-=head2 coverage_return_types
-
-The B<returns> check.
-
-=head2 coverage_termination
-
-The B<termination> check.
-
-=head2 coverage_examples
-
-The B<examples> check.
-
-=cut
-
-sub coverage_arguments      { my ($self) = @_; return $self->_check_result('arguments') }
+# The result of the B<argument_types> check, as C<coverage_arguments> returns it for its check.
+# @returns HashRef  with status and message
+# @example my $result = $pc->coverage_argument_types;
 sub coverage_argument_types { my ($self) = @_; return $self->_check_result('argument_types') }
-sub coverage_return_types   { my ($self) = @_; return $self->_check_result('returns') }
-sub coverage_termination    { my ($self) = @_; return $self->_check_result('termination') }
-sub coverage_examples       { my ($self) = @_; return $self->_check_result('examples') }
+
+# The result of the B<returns> check, as C<coverage_arguments> returns it for its check.
+# @returns HashRef  with status and message
+# @example my $result = $pc->coverage_return_types;
+sub coverage_return_types { my ($self) = @_; return $self->_check_result('returns') }
+
+# The result of the B<termination> check, as C<coverage_arguments> returns it for its check.
+# @returns HashRef  with status and message
+# @example my $result = $pc->coverage_termination;
+sub coverage_termination { my ($self) = @_; return $self->_check_result('termination') }
+
+# The result of the B<examples> check, as C<coverage_arguments> returns it for its check.
+# @returns HashRef  with status and message
+# @example my $result = $pc->coverage_examples;
+sub coverage_examples { my ($self) = @_; return $self->_check_result('examples') }
 
 sub _check_result {
     my ( $self, $check ) = @_;
@@ -450,6 +445,12 @@ sub _documentation {
         return;
     }
 
+    # The headings name subs only once the package is loaded, so load it before reading its symbols.
+    if ( !eval { require_module($package); 1 } ) {
+        $self->{why_unrated} = "requiring '$package' failed";
+        return;
+    }
+
     print "parsing '$pod_from'\n" if $TRACE_ALL;
     my @subs = Package::Stash->new($package)->list_all_symbols('CODE');
     return $self->{documentation} = Pod::Coverage::More::Documentation->new( subs => \@subs )->parse_file($pod_from);
@@ -471,16 +472,12 @@ sub _documentations {
     return @documentations;
 }
 
-=head2 section_for(NAME)
-
-Returns the section that documents the sub NAME, as C<section_for> of L<Pod::Coverage::More::Documentation> returns it:
-the section in the POD of the package, or else in that of the nearest parent class that documents it.
-Returns nothing when no POD documents NAME.
-
-    my $section = $pc->section_for('coverage');
-
-=cut
-
+# The section that documents the sub C<name>, as C<section_for> of L<Pod::Coverage::More::Documentation> returns it:
+# the section in the POD of the package, or else in that of the nearest parent class that documents it.
+# Nothing when no POD documents it.
+# @param   name  Str  the name of the sub
+# @returns HashRef  the section
+# @example my $section = $pc->section_for('coverage');
 sub section_for {
     my ( $self, $name ) = @_;
     foreach my $documentation ( $self->_documentations ) {
@@ -490,28 +487,18 @@ sub section_for {
     return;
 }
 
-=head2 analysis
-
-Returns the analysis of every sub of the package, the HASHREF that C<analyze_package> of L<Pod::Coverage::More::Analyzer> returns.
-The package is analyzed once.
-
-    my $records = $pc->analysis;
-
-=cut
-
+# The analysis of every sub of the package, as C<analyze_package> of L<Pod::Coverage::More::Analyzer> returns it.
+# The package is analyzed once.
+# @returns HashRef  from the name of each sub to the record of its analysis
+# @example my $records = $pc->analysis;
 sub analysis {
     my ($self) = @_;
     return $self->{analysis} //= Pod::Coverage::More::Analyzer->new->analyze_package( $self->{package} );
 }
 
-=head2 public_subs
-
-Returns the names of the public subs of the package, as L<Pod::Coverage> counts them: not private, not imported, and not trusted.
-
-    my @names = $pc->public_subs;
-
-=cut
-
+# The public subs of the package, as L<Pod::Coverage> counts them: not private, not imported, and not trusted.
+# @returns the names of the subs, as a list
+# @example my @names = $pc->public_subs;
 sub public_subs {
     my ($self) = @_;
     my @public;

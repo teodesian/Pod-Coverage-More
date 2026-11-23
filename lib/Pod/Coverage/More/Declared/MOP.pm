@@ -22,12 +22,12 @@ A method that a method modifier wraps declares the original method as its C<body
 
 =head1 METHODS
 
-=head2 applies_to(PACKAGE)
-
-Returns true when Moose, Mouse or Moo built PACKAGE.
-
 =cut
 
+# Whether L<Moose>, L<Mouse> or L<Moo> built C<package>.
+# @param   package  Str  the name of the package
+# @returns Bool
+# @example next if !Pod::Coverage::More::Declared::MOP->applies_to('Some::Class');
 sub applies_to {
     my ( $class, $package ) = @_;
     return _metaclass($package) ? 1 : 0;
@@ -51,12 +51,11 @@ sub _metaclass {
     return;
 }
 
-=head2 declarations(PACKAGE, NAMES)
-
-Returns the declarations of the subs of PACKAGE that the ARRAYREF NAMES lists, as L<Pod::Coverage::More::Declared> describes them.
-
-=cut
-
+# The declarations of the subs of C<package> that C<names> lists, as L<Pod::Coverage::More::Declared> describes them.
+# @param   package  Str            the name of the package
+# @param   names    ArrayRef[Str]  the names of the subs
+# @returns HashRef  from the name of each declared sub to its declaration
+# @example my $declared = Pod::Coverage::More::Declared::MOP->declarations( 'Some::Class', ['new'] );
 sub declarations {
     my ( $class, $package, $names ) = @_;
     my ( $meta, $via ) = _metaclass($package);

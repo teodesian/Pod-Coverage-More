@@ -54,6 +54,12 @@ POD
     unlike( $pod{hook}, qr/^Returns/m, "and a sub that returns nothing says nothing of it" );
 };
 
+subtest inherited_blurbs => sub {
+    require BlurbedChild;
+    my @names = map { $_->{name} } Pod::Coverage::More::Generator->new( package => 'BlurbedChild' )->sections;
+    is( \@names, ['triple'], "an override of a sub that a parent class has a blurb for gets no section, as the parent documents it" );
+};
+
 subtest the_checks_pass => sub {
     my ( $fh, $file ) = tempfile( SUFFIX => '.pod', UNLINK => 1 );
     print {$fh} "=head1 NAME\n\nBlurbed\n\n=head2 documented\n\nDocumented by hand.\n\n    Blurbed::documented();\n\n", $generator->pod, "=cut\n";

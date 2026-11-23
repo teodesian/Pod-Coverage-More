@@ -125,14 +125,12 @@ our @HASH_MDEREF_ACTIONS = (
 
 =head1 METHODS
 
-=head2 new
-
-Returns an analyzer object of the subclass that handles the running perl.
-
-Dies when the running perl is older than the oldest supported version set.
-
 =cut
 
+# An analyzer of the subclass that handles the running perl.
+# @returns Object  the analyzer, an instance of that subclass
+# @throws  when the running perl is older than the oldest supported version set
+# @example my $analyzer = Pod::Coverage::More::Analyzer->new;
 sub new {
     my ($class) = @_;
     my $backend = $class eq __PACKAGE__ ? backend_for($]) : $class;
@@ -140,14 +138,11 @@ sub new {
     return bless( {}, $backend );
 }
 
-=head2 backend_for(VERSION)
-
-Returns the name of the subclass that handles the perl VERSION, given in the numeric form of C<$]>.
-
-Dies when no subclass handles VERSION.
-
-=cut
-
+# The subclass that handles the perl C<version>.
+# @param   version  Num  in the numeric form of C<$]>
+# @returns Str  the name of the subclass
+# @throws  when no subclass handles the version
+# @example my $backend = Pod::Coverage::More::Analyzer::backend_for($]);
 sub backend_for {
     my ($version) = @_;
     foreach my $backend (@BACKENDS) {
@@ -156,20 +151,16 @@ sub backend_for {
     die "Perl $version is not supported, the oldest supported perl is $BACKENDS[-1][0]\n";
 }
 
-=head2 analyze_package(PACKAGE)
-
-Returns a HASHREF that maps the name of each sub defined in PACKAGE to the record that C<analyze_sub> returns.
-PACKAGE must already be loaded.
-
-When a class builder or a signature module declares a sub, as L<Pod::Coverage::More::Declared> reads it,
-its record also has C<declared>: that declaration, with C<wrapped> in place of its C<body>,
-and each parameter that a declared one matches has C<declared>, the declared L<Type::Tiny> constraint.
-The record of a sub that only wraps the code that does the work describes that code.
-
-Subs that PACKAGE imported from another package are left out.
-
-=cut
-
+# The records of the subs that C<package> defines, as C<analyze_sub> returns them.
+# The package must be loaded already.  Subs that it imported from another package are left out.
+#
+# When a class builder or a signature module declares a sub, as L<Pod::Coverage::More::Declared> reads it,
+# its record also has C<declared>: that declaration, with C<wrapped> in place of its C<body>,
+# and each parameter that a declared one matches has C<declared>, the declared L<Type::Tiny> constraint.
+# The record of a sub that only wraps the code that does the work describes that code.
+# @param   package  Str  the name of the package
+# @returns HashRef  from the name of each sub to its record
+# @example my $records = $analyzer->analyze_package('Pod::Coverage::More');
 sub analyze_package {
     my ( $self, $package ) = @_;
 
@@ -213,13 +204,13 @@ sub _attach_declaration {
     return;
 }
 
-=head2 analyze_sub(CODEREF, NAME, PACKAGE)
+=head1 RECORDS
 
-Returns a HASHREF with what the op tree of CODEREF shows:
+The record of a sub, which C<analyze_sub> returns, is a HASHREF with what the op tree of the sub shows:
 
 =over 4
 
-=item B<name>, B<package> - STRING - NAME and PACKAGE as given
+=item B<name>, B<package> - STRING - the name and the package, as given
 
 =item B<kind> - STRING - C<perl>, C<xs> or C<constant>
 
@@ -254,6 +245,12 @@ C<weak>, true when the value is the result of an operator, which overloading can
 
 =cut
 
+# The record of what the op tree of C<code> shows, as RECORDS describes it.
+# @param   code     CodeRef  the sub
+# @param   name     Str      the name of the sub
+# @param   package  Str      the package that the sub belongs to
+# @returns HashRef  the record
+# @example my $record = $analyzer->analyze_sub( \&Pod::Coverage::More::coverage, 'coverage', 'Pod::Coverage::More' );
 sub analyze_sub {
     my ( $self, $code, $name, $package ) = @_;
 
@@ -325,25 +322,19 @@ sub analyze_sub {
     return \%rec;
 }
 
-=head2 finish_sub(RECORD)
-
-Called once the op tree of a sub was walked, before the parameters are sorted.
-Subclasses override it to add what only the whole tree shows.  The default does nothing.
-
-=cut
-
+# Called once the op tree of a sub was walked, before the parameters are sorted.
+# Subclasses override it to add what only the whole tree shows.  The default does nothing.
+# @param   record  HashRef  the record of the sub, as RECORDS describes it
+# @returns nothing
+# @example $walker->finish_sub( \%record );
 sub finish_sub {
     return;
 }
 
-=head2 op_handlers
-
-Returns a HASHREF that maps op names to the methods that the walk calls for each op of that name,
-with the op and the ARRAYREF of its ancestors, nearest last.
-Subclasses add the ops of their version set to what this returns.
-
-=cut
-
+# The methods that the walk calls for each op, with the op and the ARRAYREF of its ancestors, nearest last.
+# Subclasses add the ops of their version set to what this returns.
+# @returns HashRef  from the name of each op to the name of its method
+# @example my $handlers = $analyzer->op_handlers;
 sub op_handlers {
     return {
         nextstate  => \&_on_cop,
@@ -367,24 +358,19 @@ sub op_handlers {
     };
 }
 
-=head2 op_classifiers
-
-Returns a HASHREF that maps op names to methods that C<classify> calls for them, ahead of its own rules.
-Subclasses add the value-producing ops of their version set here, as they add walk handlers in C<op_handlers>.
-The default has none.
-
-=cut
-
+# The methods that C<classify> calls for some ops, ahead of its own rules.
+# Subclasses add the value-producing ops of their version set here, as they add walk handlers in C<op_handlers>.
+# The default has none.
+# @returns HashRef  from the name of each op to the name of its method
+# @example my $classifiers = $analyzer->op_classifiers;
 sub op_classifiers {
     return {};
 }
 
-=head2 op_kids(OP)
-
-Returns the kids of OP, in order, for the handlers of subclasses.
-
-=cut
-
+# The kids of C<op>, in order, for the handlers of subclasses.
+# @param   op  B::OP  the op
+# @returns the kids, as a list of B::OP objects
+# @example my @kids = $self->op_kids($op);
 sub op_kids {
     my ( undef, $op ) = @_;
     return _kids($op);
@@ -465,16 +451,14 @@ sub _last_values {
     return map { +{ %$_, line => $line } } $self->classify($op);
 }
 
-=head2 classify(OP)
-
-Returns the evidence that OP, an op that produces a value, gives about that value.
-This is a list of HASHREFs, one per alternative, because an expression such as C<COND ? A : B> has more than one.
-
-The C<type> of each is one of C<undef>, C<empty>, C<number>, C<string>, C<boolean>, C<hashref>, C<arrayref>, C<coderef>, C<ref>,
-C<object>, C<variable>, C<call>, C<method>, C<list>, C<context> or C<unknown>.
-
-=cut
-
+# The evidence that C<op>, an op that produces a value, gives about that value.
+# It is one HASHREF per alternative, because an expression such as C<COND ? A : B> has more than one.
+#
+# The C<type> of each is one of C<undef>, C<empty>, C<number>, C<string>, C<boolean>, C<hashref>, C<arrayref>, C<coderef>, C<ref>,
+# C<object>, C<variable>, C<call>, C<method>, C<list>, C<context> or C<unknown>.
+# @param   op  B::OP  the op that produces the value
+# @returns the evidence, as a list of HASHREFs
+# @example my @evidence = $self->classify($op);
 sub classify {
     my ( $self, $op ) = @_;
     $op = _unwrap($op);

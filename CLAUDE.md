@@ -114,6 +114,14 @@ dzil authordeps --missing | cpanm --notest
 dzil build && dzil test --release
 ```
 
+Build and release with perl 5.44 or later.  The `[Blurbs]` section of
+`weaver.ini` loads each module to write the POD of its subs.  The backend of
+the analyzer for a newer perl does not load on an older perl.
+
+The POD of most subs is in the blurb above each sub, and only the build
+writes it.  So `perldoc` on a source file does not show that POD.  Read the
+POD of the build, or run `dzil podchecker`.
+
 The version and the entry in `Changes` come from git.  Do not edit either by
 hand.  The version is the last release tag plus one.  The entry is the
 `Changelog:` trailers of the commits since that tag.
