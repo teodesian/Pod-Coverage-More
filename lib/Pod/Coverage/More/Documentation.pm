@@ -283,8 +283,8 @@ sub _item {
     }
 
     my $word = q{};
-    if    ( $rest =~ m/\A\((.*?)\)/ )                      { $word = $1 }
-    elsif ( $rest =~ m/\A[-:\s]*([^-:]*?)\s*(?:[-:]|\z)/ ) { $word = $1 }
+    if    ( $rest =~ m/\A\((.*?)\)/ )                       { $word = $1 }
+    elsif ( $rest =~ m/\A[-:\s]*(.*?)\s*(?:\s-\s|:\s|\z)/ ) { $word = $1 }
     $word =~ s/\A\s+|\s+\z//g;
     my $type       = type_named($word);
     my $documented = { word => $type ? lc $word : q{}, type => $type };

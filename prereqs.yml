@@ -4,9 +4,10 @@
 runtime:
   requires:
     perl: '5.036'
-  recommends:
-    # Pod::Coverage::More::Declared reads a Moo class through the Moose metaclass that Moo inflates.
+    # Pod::Weaver::Section::Blurbs is a Moose class that consumes a role of Pod::Weaver,
+    # named in a string, which AutoPrereqs cannot see; dist.ini skips Moose for the fixtures.
     Moose: '0'
+    Pod::Weaver: '4'
 test:
   recommends:
     Moose: '0'

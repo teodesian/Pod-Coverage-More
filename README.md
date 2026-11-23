@@ -113,6 +113,33 @@ The **termination** check.
 
 The **examples** check.
 
+## section\_for(NAME)
+
+Returns the section that documents the sub NAME, as `section_for` of [Pod::Coverage::More::Documentation](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3ADocumentation) returns it:
+the section in the POD of the package, or else in that of the nearest parent class that documents it.
+Returns nothing when no POD documents NAME.
+
+```perl
+my $section = $pc->section_for('coverage');
+```
+
+## analysis
+
+Returns the analysis of every sub of the package, the HASHREF that `analyze_package` of [Pod::Coverage::More::Analyzer](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3AAnalyzer) returns.
+The package is analyzed once.
+
+```perl
+my $records = $pc->analysis;
+```
+
+## public\_subs
+
+Returns the names of the public subs of the package, as [Pod::Coverage](https://metacpan.org/pod/Pod%3A%3ACoverage) counts them: not private, not imported, and not trusted.
+
+```perl
+my @names = $pc->public_subs;
+```
+
 # SEE ALSO
 
 Please see those modules/websites for more information related to this module.

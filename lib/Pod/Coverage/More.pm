@@ -162,12 +162,12 @@ sub coverage_report {
     my $self = shift;
     return $self->{report} if $self->{report};
     return                 if !$self->_documentation;
-    my $analysis = $self->_analysis;
+    my $analysis = $self->analysis;
 
     my %report;
     foreach my $name ( sort $self->_get_syms( $self->{package} ) ) {
-        my $section = $self->_section_for($name) or next;
-        my $rec     = $analysis->{$name}         or next;
+        my $section = $self->section_for($name) or next;
+        my $rec     = $analysis->{$name}        or next;
         my %failures;
         foreach my $check (@CHECKS) {
             my $method = "_check_$check";
@@ -471,8 +471,17 @@ sub _documentations {
     return @documentations;
 }
 
-# The section that documents the sub NAME: the package's own, or else that of the nearest parent class that documents it.
-sub _section_for {
+=head2 section_for(NAME)
+
+Returns the section that documents the sub NAME, as C<section_for> of L<Pod::Coverage::More::Documentation> returns it:
+the section in the POD of the package, or else in that of the nearest parent class that documents it.
+Returns nothing when no POD documents NAME.
+
+    my $section = $pc->section_for('coverage');
+
+=cut
+
+sub section_for {
     my ( $self, $name ) = @_;
     foreach my $documentation ( $self->_documentations ) {
         my $section = $documentation->section_for($name);
@@ -481,10 +490,35 @@ sub _section_for {
     return;
 }
 
-# Analyze every sub of the package once, from its compiled op tree.
-sub _analysis {
-    my $self = shift;
+=head2 analysis
+
+Returns the analysis of every sub of the package, the HASHREF that C<analyze_package> of L<Pod::Coverage::More::Analyzer> returns.
+The package is analyzed once.
+
+    my $records = $pc->analysis;
+
+=cut
+
+sub analysis {
+    my ($self) = @_;
     return $self->{analysis} //= Pod::Coverage::More::Analyzer->new->analyze_package( $self->{package} );
+}
+
+=head2 public_subs
+
+Returns the names of the public subs of the package, as L<Pod::Coverage> counts them: not private, not imported, and not trusted.
+
+    my @names = $pc->public_subs;
+
+=cut
+
+sub public_subs {
+    my ($self) = @_;
+    my @public;
+    foreach my $name ( $self->_get_syms( $self->{package} ) ) {
+        push @public, $name if !$self->_trustme_check($name);
+    }
+    return @public;
 }
 
 1;

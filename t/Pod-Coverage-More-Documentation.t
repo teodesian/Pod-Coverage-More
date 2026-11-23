@@ -55,7 +55,7 @@ subtest sections => sub {
 subtest items => sub {
     my $doc = read_pod(
         undef,
-        '=head2 typed(count, input, name, plain, list, cat, catalog)',
+        '=head2 typed(count, input, name, plain, list, cat, catalog, thing)',
         '=over 4',
         '=item B<count> - INTEGER - how many',
         '=item input (array) - the lines',
@@ -64,12 +64,13 @@ subtest items => sub {
         '=item list - ArrayRef[Int] - the numbers',
         '=item catalog - Str',
         '=item cat - Int',
+        '=item thing - InstanceOf["Foo::Bar"] - a type with colons in it',
         '=back',
     );
     my $types = $doc->section_for('typed')->{types}{typed};
     my %words = map { $_ => $types->{$_}{word} } keys %$types;
-    is( \%words,                            { count => 'integer', input => 'array', name => 'string', plain => q{}, list => 'arrayref[int]', cat => 'int', catalog => 'str' }, "the first word names the argument, and the segment after it is the type" );
-    is( $types->{list}{type}->display_name, 'ArrayRef[Int]',                                                                                                                   "a type expression becomes its constraint" );
+    is( \%words,                            { count => 'integer', input => 'array', name => 'string', plain => q{}, list => 'arrayref[int]', cat => 'int', catalog => 'str', thing => 'instanceof["foo::bar"]' }, "the first word names the argument, and the segment after it is the type" );
+    is( $types->{list}{type}->display_name, 'ArrayRef[Int]',                                                                                                                                                      "a type expression becomes its constraint" );
     ok( !$types->{plain}{type}, "a description is no type" );
 };
 
