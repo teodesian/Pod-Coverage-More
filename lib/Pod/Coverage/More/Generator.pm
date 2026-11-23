@@ -8,6 +8,7 @@ use warnings FATAL => q{all};
 use re q{/xsaa};
 
 use Module::Runtime qw{module_notional_filename};
+use mro;
 
 use Pod::Coverage::More;
 use Pod::Coverage::More::Blurb;
@@ -23,7 +24,8 @@ use Pod::Coverage::More::Documentation;
 =head1 DESCRIPTION
 
 Writes a POD section for each public sub that has a blurb, as L<Pod::Coverage::More::Blurb> reads it,
-and no POD of its own or of a parent class.  A sub without a blurb gets no section:
+and no POD of its own or of a parent class.  An override of a sub that a parent class has a blurb for gets none either,
+because the section of the parent documents it.  A sub without a blurb gets no section:
 the blurb is how a sub opts in, as C<# ABSTRACT:> is how a module does.
 
 A section says what the blurb says, and fills in what the code declares where the blurb is silent:
@@ -78,10 +80,22 @@ sub sections {
     my @sections;
     foreach my $name ( sort $coverage->public_subs ) {
         my $blurb = $blurbs->{$name} or next;
-        next if $coverage->section_for($name);
+        next if $coverage->section_for($name) || $self->_parent_has_blurb($name);
         push @sections, { name => $name, pod => _section( $name, $blurb, $analysis->{$name} ) };
     }
     return @sections;
+}
+
+# Whether a parent class has a blurb for the sub NAME, which becomes its section when the parent is woven.
+sub _parent_has_blurb {
+    my ( $self, $name ) = @_;
+    foreach my $parent ( @{ mro::get_linear_isa( $self->{package} ) } ) {
+        next if $parent eq $self->{package};
+        my $file = $INC{ module_notional_filename($parent) } or next;
+        $self->{parent_blurbs}{$parent} //= Pod::Coverage::More::Blurb->read_file($file);
+        return 1 if $self->{parent_blurbs}{$parent}{$name};
+    }
+    return 0;
 }
 
 =head2 pod
