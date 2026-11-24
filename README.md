@@ -206,11 +206,9 @@ Current Maintainers:
 
 - George S. Baugh <teodesian@cpan.org>
 
-# CONTRIBUTORS
+# CONTRIBUTOR
 
-- George S. Baugh <george@troglodyne.com>
-- George S. Baugh <george@troglodyne.net>
-- troglodyne-robot <trogbot@troglodyne.net>
+troglodyne-robot <trogbot@troglodyne.net>
 
 # COPYRIGHT AND LICENSE
 
