@@ -14,7 +14,7 @@ use Package::Stash;
 use Pod::Find       qw(pod_where);
 use Types::Standard qw{Any ArrayRef CodeRef GlobRef HashRef ScalarRef Str};
 
-use parent 'Pod::Coverage';
+use parent 'Pod::Coverage::TrustPod';
 
 use Pod::Coverage::More::Analyzer;
 use Pod::Coverage::More::Documentation;
@@ -38,6 +38,9 @@ to make sure that the POD also says what each sub takes, returns, and how it fai
 It compares what L<Pod::Coverage::More::Documentation> reads from the POD
 with what L<Pod::Coverage::More::Analyzer> reads from the compiled subs,
 and the types that they name as L<Type::Tiny> constraints.
+
+It counts a sub as documented when a C<=for Pod::Coverage> line or a C<=begin Pod::Coverage> block names it,
+as L<Pod::Coverage::TrustPod>, its parent class, counts it, and then does not check it.
 
 L<Test::Pod::Coverage::More> runs these checks as tests.
 

@@ -100,6 +100,13 @@ subtest inherited_documentation => sub {
     is( [ map { @{ $hook->{failures}{$_} } } sort keys %{ $hook->{failures} } ], [],             "against the code of the override" );
 };
 
+subtest trusted_by_pod => sub {
+    require Trusted;
+    my $pc = Pod::Coverage::More->new( package => 'Trusted' );
+    is( $pc->coverage,        1,          "a sub that =for Pod::Coverage or =begin Pod::Coverage names counts as documented" ) or diag( join q{ }, $pc->naked );
+    is( [ $pc->public_subs ], ['double'], "and is not public, so the checks skip it" );
+};
+
 subtest coverage_methods => sub {
     my $pc = Pod::Coverage::More->new( package => 'Documented' );
     is( $pc->coverage_termination->{status},                                                      0,                                                                             "coverage_termination fails when one sub fails it" );
