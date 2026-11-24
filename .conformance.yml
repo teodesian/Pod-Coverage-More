@@ -30,7 +30,3 @@ checks:
       # the keywords they export (has, class, fun), a use the policy cannot see.
       ProhibitUnusedImports:
         allow: Moose Moo Mouse Class::Tiny Object::Pad Kavorka Method::Signatures
-      # An @example line of a blurb is code in a comment on purpose.  This is
-      # the pattern of perl-slop-plugin#76; delete it once a release has it.
-      Bangs::ProhibitCommentedOutCode:
-        commentedcoderegex: \A(?!\#\s*\@example\b).*\$[A-Za-z_].*=
