@@ -4,7 +4,7 @@ Pod::Coverage::More - Make sure your POD covers more ground than just subroutine
 
 # VERSION
 
-version 0.001
+version 0.002
 
 # SYNOPSIS
 
@@ -24,6 +24,9 @@ to make sure that the POD also says what each sub takes, returns, and how it fai
 It compares what [Pod::Coverage::More::Documentation](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3ADocumentation) reads from the POD
 with what [Pod::Coverage::More::Analyzer](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3AMore%3A%3AAnalyzer) reads from the compiled subs,
 and the types that they name as [Type::Tiny](https://metacpan.org/pod/Type%3A%3ATiny) constraints.
+
+It counts a sub as documented when a `=for Pod::Coverage` line or a `=begin Pod::Coverage` block names it,
+as [Pod::Coverage::TrustPod](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3ATrustPod), its parent class, counts it, and then does not check it.
 
 [Test::Pod::Coverage::More](https://metacpan.org/pod/Test%3A%3APod%3A%3ACoverage%3A%3AMore) runs these checks as tests.
 

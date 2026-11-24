@@ -1,5 +1,9 @@
 Revision history for Pod-Coverage-More
 
+0.002 2026-11-24 TEODESIAN
+    - Count a sub that =for Pod::Coverage names as documented, as Pod::Coverage::TrustPod does
+    - Add [Test::Pod::Coverage::More], a Dist::Zilla plugin that adds xt/author/pod-coverage-more.t in place of [PodCoverageTests]
+
 0.001 2026-11-24 TEODESIAN
     - Infer parameters, return values and terminations of subs from their compiled op trees, on perl 5.36 and later
     - License the distribution under MIT instead of the terms of Perl 5
