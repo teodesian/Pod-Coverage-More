@@ -128,4 +128,6 @@ L<Pod::Coverage::More>
 
 L<Test::Pod::Coverage>
 
+L<Dist::Zilla::Plugin::Test::Pod::Coverage::More>
+
 =cut
