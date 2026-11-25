@@ -63,7 +63,22 @@ POD
 subtest inherited_blurbs => sub {
     require BlurbedChild;
     my @names = map { $_->{name} } Pod::Coverage::More::Generator->new( package => 'BlurbedChild' )->sections;
-    is( \@names, ['triple'], "an override of a sub that a parent class has a blurb for gets no section, as the parent documents it" );
+    is( \@names, [qw{documented double triple}], "an override whose blurb has a tag gets a section, whether its parent has a blurb or POD for it" );
+    ok( !grep( { $_ eq 'hook' } @names ), "but an override under a comment with no tag gets none, as its parent documents it" );
+
+    my $child = Pod::Coverage::More::Generator->new( package => 'BlurbedChild' );
+    my ( $fh, $file ) = tempfile( SUFFIX => '.pod', UNLINK => 1 );
+    print {$fh} "=head1 NAME\n\nBlurbedChild\n\n", $child->pod, "=cut\n";
+    close($fh) or die "Cannot close $file: $!\n";
+    my $report = Pod::Coverage::More->new( package => 'BlurbedChild', pod_from => $file )->coverage_report;
+    is( [ grep { $report->{$_} } qw{documented double} ], [qw{documented double}], "and the checks read that section" );
+    my @failures;
+    foreach my $name (qw{documented double}) {
+        foreach my $check ( sort keys %{ $report->{$name}{failures} } ) {
+            push @failures, map { "[$check] $_" } @{ $report->{$name}{failures}{$check} };
+        }
+    }
+    is( \@failures, [], "which passes them" );
 
     require CommentedChild;
     @names = map { $_->{name} } Pod::Coverage::More::Generator->new( package => 'CommentedChild' )->sections;

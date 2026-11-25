@@ -39,7 +39,9 @@ and above each sub, a blurb, as L<Pod::Coverage::More::Blurb> describes it:
 =head1 DESCRIPTION
 
 Adds the sections that L<Pod::Coverage::More::Generator> writes for the subs of the woven module:
-one for each public sub that has a blurb and no POD of its own or of a parent class.
+one for each public sub that has a blurb and no POD of its own.
+An override of a sub that a parent class documents gets a section only when its blurb has a tag, such as C<@returns>;
+a comment with no tag leaves it to the POD of the parent, as L<Pod::Coverage::More::Generator> describes.
 They go under the C<head1> named C<header>, which is C<METHODS> by default:
 into the one that the POD has already, whether a section before this one wove it or a later one such as C<[Leftovers]> will,
 or else into a new one where this section stands in F<weaver.ini>.

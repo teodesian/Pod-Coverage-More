@@ -152,7 +152,7 @@ our %POD_WORDS = (
 =head2 type_named(NAME)
 
 Returns the constraint that NAME names.  NAME is either a type word of the POD that L<Pod::Coverage::More> reads,
-in any case, such as C<HASHREF> or C<integer>, or a type expression of L<Types::Standard>, such as C<ArrayRef[Int]>.
+in any case, such as C<HASHREF> or C<integer>, or a type expression of any type of L<Types::Standard>, such as C<ArrayRef[Int]> or C<Enum["a","b"]>.
 A word for a container, C<ARRAY> or C<HASH>, names a reference to one.
 
 =over 4
@@ -176,8 +176,7 @@ sub type_named {
     # No type expression has a %, and the error of a failed lookup takes NAME as a printf format, which warns.
     return if index( $name, q{%} ) >= 0;
 
-    my $registry = Type::Registry->for_class(__PACKAGE__);
-    $registry->add_types('Types::Standard') if !$registry->simple_lookup('Str');
+    state $registry = Type::Registry->new->add_types('Types::Standard');
     my $type = eval { $registry->lookup($name) };
 
     # The parser of Type::Registry reads a number as a value, and gives it back as it is.

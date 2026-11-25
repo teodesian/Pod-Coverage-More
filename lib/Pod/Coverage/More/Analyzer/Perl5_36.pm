@@ -13,6 +13,7 @@ use parent 'Pod::Coverage::More::Analyzer';
 Adds the ops that this version set compiles signatures into:
 one C<argcheck> op with the counts of parameters,
 then one C<argelem> op per named parameter, with an C<argdefelem> kid when it has a default.
+A parameter with no name, as C<$> or C<@>, has no C<argelem> op, and only the counts of C<argcheck> show it.
 
 See C<deparse_argops> in the L<B::Deparse> of these perls for the reference reading of these ops.
 
@@ -30,7 +31,8 @@ sub op_handlers {
     };
 }
 
-# A placeholder parameter ($ or $=) has no argelem op, so only argcheck's count shows it.
+# A placeholder parameter ($ or $=) has no argelem op, so only argcheck's count shows it,
+# and a slurpy one with no name (@ or %) only its slurpy flag, at the index after the others.
 sub finish_sub {
     my ( $self, $record ) = @_;
     my $signature = $self->{signature} or return;
@@ -42,6 +44,15 @@ sub finish_sub {
             index    => $index,
             source   => 'signature',
             optional => ( $index >= $signature->{mandatory} ) ? 1 : 0,
+        );
+    }
+    if ( $signature->{slurpy} && !$seen{ $signature->{params} } ) {
+        $self->_add_param(
+            name     => undef,
+            index    => $signature->{params},
+            source   => 'signature',
+            slurpy   => 1,
+            optional => 1,
         );
     }
     return;
