@@ -34,10 +34,12 @@ sub double {
 # @param  size    Int  how big
 # @param  colour  Str  what colour
 # @throws when the size is negative
+# @throws with a Blurbed::Exception when the size is over 1000
 # @example my $widget = Blurbed->make( size => 3, colour => 'red' );
 sub make {
     my ( $class, %opts ) = @_;
-    die "negative\n" if $opts{size} < 0;
+    die "negative\n"                                  if $opts{size} < 0;
+    Blurbed::Exception->throw( message => 'too big' ) if $opts{size} > 1000;
     return bless { size => $opts{size}, colour => $opts{colour} }, $class;
 }
 

@@ -7,7 +7,7 @@ use 5.036;
 use warnings FATAL => q{all};
 use re q{/xsaa};
 
-use List::Util      qw{any none};
+use List::Util      qw{all any none};
 use Module::Runtime qw{module_notional_filename require_module};
 use mro;
 use Package::Stash;
@@ -93,6 +93,8 @@ as C<=item @paths - Str>, gives the type of each element.
 
 =item B<returns> - a sub that returns a value says so with a C<Returns> paragraph or an C<=item Returns>,
 and the documented types cover every type that the code returns or declares.
+A sub whose POD says that it returns nothing may return the value of a call, such as C<< $self->SUPER::update(@_) >>,
+because what the call returns is not in its code; any other value that it returns fails.
 The type of the result of an operator, such as C<$x * 2>, is only probable, because an operand of a class that overloads the operator
 makes the result an object of that class, as L<Math::GMP> does; so such a type fails only when it is of another kind than every documented one
 
@@ -381,8 +383,11 @@ sub _check_returns {
     return "No return value documented for $name" if !@statements;
     my @documented = map { @{ $_->{types} } } @statements;
     if ( !@documented ) {
-        return "$name is documented to return nothing, but it returns a value" if _all_nothing(@statements);
-        return;
+        return if !_all_nothing(@statements);
+
+        # What a call returns is not in this code, and may be nothing, so only another value contradicts the POD.
+        return if !@declared && all { $_->{type} eq 'call' || $_->{type} eq 'method' } @returned;
+        return "$name is documented to return nothing, but it returns a value";
     }
 
     my @failures;
