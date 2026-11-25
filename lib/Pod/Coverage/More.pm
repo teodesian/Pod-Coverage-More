@@ -64,6 +64,7 @@ and an C<=item> per argument gives its type.  L<Pod::Coverage::More::Documentati
         my $smaller = $image->resize( 100, 50 );
 
 For several functions on one line, separate them with commas or spaces; for arguments, use commas.
+A heading of prose, such as C<=head2 The token cache>, names no sub, even when one of its words is the name of one.
 An argument list can give the sigils of the arguments, as C<($foo, @bar, \%baz)>.
 Then the sigils are compared with those of the parameters, and no C<=item> is needed.
 
