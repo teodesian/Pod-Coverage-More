@@ -8,7 +8,7 @@ use warnings FATAL => q{all};
 use re q{/xsaa};
 
 use List::Util      qw{any none};
-use Module::Runtime qw{require_module};
+use Module::Runtime qw{module_notional_filename require_module};
 use mro;
 use Package::Stash;
 use Pod::Find       qw(pod_where);
@@ -80,7 +80,9 @@ and the checks compare its own code with the section of the parent.
 =over 4
 
 =item B<arguments> - each argument that the POD names is a parameter of the sub: a variable assigned from C<@_>,
-a parameter of a signature, a key of a hash of named arguments, or a parameter that a class builder or a signature module declares
+a parameter of a signature, a key of a hash of named arguments, or a parameter that a class builder or a signature module declares.
+A parameter with no name, such as the placeholder C<$> in C<sub check ($self, $)>, takes whatever name the POD gives the argument at its position.
+An argument beyond the parameters of the sub still fails.
 
 =item B<argument_types> - each argument has a documented type that agrees with the code.  A documented type must be the type that
 the code declares or a narrower one, so that the POD never promises that the sub takes what it refuses.
@@ -232,6 +234,25 @@ sub _accepted_names {
     return _bare_names(@names);
 }
 
+# The arguments in ARGS, the list of the POD, that stand at the position of a parameter with no name,
+# such as a placeholder in a signature, which the POD may call anything.
+sub _at_unnamed_params {
+    my ( $rec, @args ) = @_;
+    my ( @params, %invocants );
+    foreach my $param ( sort { $a->{index} <=> $b->{index} } @{ $rec->{params} } ) {
+        if ( _is_invocant( $rec, $param ) ) {
+            $invocants{ Pod::Coverage::More::Documentation->bare_name( $param->{name} ) } = 1 if defined $param->{name};
+            next;
+        }
+        push @params, $param;
+    }
+    my @listed;
+    foreach my $arg (@args) {
+        push @listed, $arg if !$invocants{ Pod::Coverage::More::Documentation->bare_name($arg) };
+    }
+    return map { $listed[$_] } grep { $_ <= $#params && !defined $params[$_]{name} } 0 .. $#listed;
+}
+
 # Whether PARAM is the object or class that a method is called on, whose keys are its fields and not named arguments.
 sub _is_invocant {
     my ( $rec, $param ) = @_;
@@ -255,8 +276,9 @@ sub _check_arguments {
     return if _is_stub($rec);
     my $args     = $section->{args}{$name} or return;
     my @accepted = _accepted_names($rec);
+    my %unnamed  = map { $_ => 1 } _at_unnamed_params( $rec, @$args );
     my @failures;
-    foreach my $arg ( _bare_names(@$args) ) {
+    foreach my $arg ( _bare_names( grep { !$unnamed{$_} } @$args ) ) {
         push @failures, "Var Mismatch for function $name: $arg not in @accepted" if none { $_ eq $arg } @accepted;
     }
     return @failures;
@@ -272,8 +294,9 @@ sub _check_argument_types {
 
     # Strategy 1: the POD wrote each argument with its sigil, so it must match the sigil of the parameter, in any case.
     if ( any { m/\A[\$*\\@%&|]/ } @$args ) {
+        my %unnamed = map { $_ => 1 } _at_unnamed_params( $rec, @$args );
         my @failures;
-        foreach my $arg ( map { s/\A\\[\$*@%&|]/\$/r } @$args ) {
+        foreach my $arg ( map { s/\A\\[\$*@%&|]/\$/r } grep { !$unnamed{$_} } @$args ) {
             push @failures, "Var Type Mismatch for function $name: $arg not in @params" if none { lc($_) eq lc($arg) } @params;
         }
         return @failures;
@@ -455,7 +478,7 @@ sub _documentation {
 
     my $package = $self->{package};
     print "getting pod location for '$package'\n" if $TRACE_ALL;
-    $self->{pod_from} ||= pod_where( { -inc => 1 }, $package );
+    $self->{pod_from} ||= pod_where( { -inc => 1 }, $package ) // $INC{ module_notional_filename($package) };
     my $pod_from = $self->{pod_from};
     unless ($pod_from) {
         $self->{why_unrated} = "couldn't find pod";

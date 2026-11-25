@@ -33,6 +33,14 @@ subtest coverage => sub {
     is( $missing->why_unrated, "couldn't find pod", "because it has no POD" );
 };
 
+subtest a_package_loaded_from_outside_inc => sub {
+    my $script = "$FindBin::Bin/script/scripted";
+    local $INC{'Scripted/Program.pm'} = $script;
+    require $script;
+    my $pc = Pod::Coverage::More->new( package => 'Scripted::Program' );
+    ok( defined $pc->coverage, "a package that no file on \@INC holds is rated, from the POD of the file that %INC names" ) or diag $pc->why_unrated;
+};
+
 subtest coverage_arguments => sub {
     my $result = Pod::Coverage::More->new( package => 'Mistyped' )->coverage_arguments;
     is( $result->{status}, 0, "an argument that the sub does not take fails" );
@@ -87,8 +95,12 @@ subtest coverage_report => sub {
     is( $failures{says_nothing},                 ['[returns] says_nothing is documented to return nothing, but it returns a value'],                                                                      "POD that says it returns nothing must be right" );
     is( $failures{dies_quietly},                 ['[termination] dies_quietly can terminate (die at line 138), but its POD does not say so'],                                                             "a sub that dies must say so" );
     is( $failures{second_of},                    ['[argument_types] No type declared for arg dog of second_of'],                                                                                          "an item whose type is not a type has no type, and documents only its own argument" );
+    is( $failures{placeholder_method},           [],                                                                                                                                                      "any name documents a placeholder parameter, which has none, at its position" );
+    is( $failures{placeholders},                 [],                                                                                                                                                      "and so for a sub that takes only placeholders" );
+    is( $failures{placeholder_sigils},           [],                                                                                                                                                      "and for an argument with a sigil" );
+    is( $failures{placeholder_extra},            ['[arguments] Var Mismatch for function placeholder_extra: extra not in self'],                                                                          "but an argument beyond the parameters still fails" );
     is( $failures{records},                      [],                                                                                                                                                      "a documented parameterization of the type that the code returns, as ArrayRef[HashRef] of ArrayRef, passes" );
-    is( $failures{records_as_hash},              ['[returns] Return type mismatch for records_as_hash: returns ArrayRef (line 328), documented as HashRef[HashRef]'],                                     "but a parameterization of another kind still fails" );
+    is( $failures{records_as_hash},              ['[returns] Return type mismatch for records_as_hash: returns ArrayRef (line 393), documented as HashRef[HashRef]'],                                     "but a parameterization of another kind still fails" );
     is( $report->{good}{failures}{examples},     [],                                                                                                                                                      "a verbatim call is an example" );
     is( $report->{narrower}{failures}{examples}, ['No example of narrower in its POD'],                                                                                                                   "a section with no verbatim call has no example" );
 };

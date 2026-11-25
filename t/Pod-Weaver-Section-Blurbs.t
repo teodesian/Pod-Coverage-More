@@ -40,6 +40,12 @@ subtest an_existing_section => sub {
     like( $woven, qr/^=head2[ ]written\n.*^=head2[ ]double\(count\)$/ms, "after what is there" );
 };
 
+subtest a_script_whose_package_has_no_module_file => sub {
+    my $woven = weave( "=head1 NAME\n\nscripted\n\n=cut\n", 't/script/scripted' );
+    like( $woven, qr/^=head2[ ]greet\(name\)$/m,             "the script loads by its path, and its subs get sections" );
+    like( $woven, qr/^Returns[ ]Str,[ ]the[ ]greeting[.]$/m, "from the blurbs of the script" );
+};
+
 subtest a_module_that_does_not_load => sub {
     my $dir = tempdir( CLEANUP => 1 );
     open( my $ini, '>', "$dir/weaver.ini" ) or die "weaver.ini: $!";
