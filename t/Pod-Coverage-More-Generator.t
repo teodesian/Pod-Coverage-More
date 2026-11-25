@@ -70,9 +70,9 @@ subtest inherited_blurbs => sub {
     print {$fh} "=head1 NAME\n\nBlurbedChild\n\n", $child->pod, "=cut\n";
     close($fh) or die "Cannot close $file: $!\n";
     my $report = Pod::Coverage::More->new( package => 'BlurbedChild', pod_from => $file )->coverage_report;
-    is( [ grep { $report->{$_} } qw{documented double} ], [qw{documented double}], "and the checks read that section" );
+    is( [ grep { $report->{$_} } qw{documented double triple} ], [qw{documented double triple}], "and the checks read those sections" );
     my @failures;
-    foreach my $name (qw{documented double}) {
+    foreach my $name (qw{documented double triple}) {
         foreach my $check ( sort keys %{ $report->{$name}{failures} } ) {
             push @failures, map { "[$check] $_" } @{ $report->{$name}{failures}{$check} };
         }
