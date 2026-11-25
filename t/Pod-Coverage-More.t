@@ -106,6 +106,9 @@ subtest coverage_report => sub {
     is( $failures{scalar_as_list},                             ['[argument_types] Type mismatch for arg path of scalar_as_list: documented the elements of @path, expected scalar'],                                                       "but the sigil of a list does not document a scalar" );
     is( $failures{records},                                    [],                                                                                                                                                                         "a documented parameterization of the type that the code returns, as ArrayRef[HashRef] of ArrayRef, passes" );
     is( $failures{records_as_hash},                            ['[returns] Return type mismatch for records_as_hash: returns ArrayRef (line 486), documented as HashRef[HashRef]'],                                                        "but a parameterization of another kind still fails" );
+    is( $failures{anonymous_slurpy},                           [],                                                                                                                                                                         "a slurpy with no name takes any name in the POD at its position or after it" );
+    is( $failures{named_before_anonymous_slurpy},              [],                                                                                                                                                                         "and so after a named parameter, which still has its name" );
+    is( $failures{anonymous_slurpy_misnamed},                  ['[arguments] Var Mismatch for function anonymous_slurpy_misnamed: total not in self count'],                                                                               "but a name at the position of a named parameter still fails" );
     is( $failures{assigned_heading},                           [],                                                                                                                                                                         "a heading that assigns its call still names its sub, and the other checks read its section" );
     is( $report->{assigned_heading}{failures}{examples},       ['The heading of assigned_heading is an example: move `$sum = Documented->assigned_heading($x, $y)` into a verbatim block, and head the section assigned_heading($x, $y)'], "but it is an example, which belongs in a verbatim block" );
     is( $report->{assigned_heading_alone}{failures}{examples}, [ 'The heading of assigned_heading_alone is an example: move `@pairs = Documented->assigned_heading_alone(%opts)` into a verbatim block, and head the section assigned_heading_alone(%opts)', 'No example of assigned_heading_alone in its POD' ], "and it is no example of the sub" );
@@ -121,6 +124,9 @@ subtest inherited_documentation => sub {
     my $hook = $pc->coverage_report->{hook};
     is( $hook->{section}{heading},                                               'hook(record)', "and the checks read the section of the parent" );
     is( [ map { @{ $hook->{failures}{$_} } } sort keys %{ $hook->{failures} } ], [],             "against the code of the override" );
+    my $templates = $pc->coverage_report->{template_files};
+    is( [ map { @{ $templates->{failures}{$_} } } sort keys %{ $templates->{failures} } ], [], "an override need not take every argument that the section of its parent documents" );
+    ok( $templates->{inherited}, "and the report says that the section is inherited" );
 };
 
 subtest trusted_by_pod => sub {
