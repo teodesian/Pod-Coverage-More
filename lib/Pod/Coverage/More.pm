@@ -95,6 +95,8 @@ as C<=item @paths - Str>, gives the type of each element.
 and the documented types cover every type that the code returns or declares.
 A sub whose POD says that it returns nothing may return the value of a call, such as C<< $self->SUPER::update(@_) >>,
 because what the call returns is not in its code; any other value that it returns fails.
+A documented parameterization of a type that the code returns, such as C<ArrayRef[HashRef]> for C<[ map { {...} } @list ]>,
+covers it, because the code shows the kind of the value and not what is inside it.
 The type of the result of an operator, such as C<$x * 2>, is only probable, because an operand of a class that overloads the operator
 makes the result an object of that class, as L<Math::GMP> does; so such a type fails only when it is of another kind than every documented one
 
@@ -400,6 +402,9 @@ sub _check_returns {
         # A literal is one value, which can satisfy a type that its own type is no subtype of, as 1 satisfies Bool.
         next if $evidence && exists $evidence->{value} && _value_covered( $evidence->{value}, \@documented );
 
+        # The code shows the kind of what it returns, as [ ... ] is an ArrayRef, but not what is inside it.
+        next if $evidence && !exists $evidence->{value} && _parameterizes( $type, \@documented );
+
         # The type of the result of an operator is weak: overloading can change it, so it fails only when it contradicts.
         next if $weak && any { !_contradicts( $_, $type ) } @documented;
         next if $seen{ $type->display_name }++;
@@ -426,6 +431,15 @@ sub _covered {
     my ( $type, $documented ) = @_;
     foreach my $candidate (@$documented) {
         return 1 if $candidate->equals(Any) || $type->equals($candidate) || $type->is_subtype_of($candidate);
+    }
+    return 0;
+}
+
+# Whether a documented type is a parameterization of TYPE, as ArrayRef[HashRef] is of ArrayRef.
+sub _parameterizes {
+    my ( $type, $documented ) = @_;
+    foreach my $candidate (@$documented) {
+        return 1 if $candidate->is_parameterized && $candidate->parameterized_from->equals($type);
     }
     return 0;
 }
