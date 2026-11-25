@@ -33,6 +33,14 @@ subtest coverage => sub {
     is( $missing->why_unrated, "couldn't find pod", "because it has no POD" );
 };
 
+subtest a_package_loaded_from_outside_inc => sub {
+    my $script = "$FindBin::Bin/script/scripted";
+    local $INC{'Scripted/Program.pm'} = $script;
+    require $script;
+    my $pc = Pod::Coverage::More->new( package => 'Scripted::Program' );
+    ok( defined $pc->coverage, "a package that no file on \@INC holds is rated, from the POD of the file that %INC names" ) or diag $pc->why_unrated;
+};
+
 subtest coverage_arguments => sub {
     my $result = Pod::Coverage::More->new( package => 'Mistyped' )->coverage_arguments;
     is( $result->{status}, 0, "an argument that the sub does not take fails" );
