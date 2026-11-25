@@ -17,6 +17,7 @@ sub hook {
 
 # Triple a number.
 # @param   count  Num  what to triple
+# @returns Num  three times the count
 # @example my $nine = BlurbedChild::triple(3);
 sub triple {
     my ($count) = @_;
