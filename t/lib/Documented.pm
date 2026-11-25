@@ -486,4 +486,42 @@ sub records_as_hash ($names) {
     return [ map { { name => $_ } } @$names ];
 }
 
+=head2 $sum = Documented->assigned_heading($x, $y)
+
+Returns Int.
+
+    my $sum = Documented->assigned_heading( 1, 2 );
+
+=cut
+
+sub assigned_heading {
+    my ( $class, $x, $y ) = @_;
+    return int( $x + $y );
+}
+
+=head2 @pairs = Documented->assigned_heading_alone(%opts)
+
+Returns nothing.
+
+=cut
+
+sub assigned_heading_alone {
+    my ( $class, %opts ) = @_;
+    $opts{seen} = 1;
+    return;
+}
+
+=head2 Documented->called_heading($x)
+
+Returns Int.
+
+    my $int = Documented->called_heading(2.5);
+
+=cut
+
+sub called_heading {
+    my ( $class, $x ) = @_;
+    return int($x);
+}
+
 1;

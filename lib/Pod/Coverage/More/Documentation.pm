@@ -35,6 +35,8 @@ called on an object or a class or qualified by its package, and maybe assigned t
     =head2 \%plan = Some::Class->plan(%args)
     =method Some::Module::fully_qualified($x)
 
+A heading that assigns its call still names its sub, but L<Pod::Coverage::More> takes it for an example, which belongs in a verbatim block.
+
 A heading names subs in one of three forms: a single call or name,
 a list of calls and names separated by commas,
 or a list separated by spaces that has a call in it or that names only subs of the package.
@@ -74,6 +76,8 @@ C<section_for> returns a HASHREF with these keys:
 =item B<line> - INTEGER - the line of the heading
 
 =item B<functions> - ARRAYREF - the names of the subs that the heading names
+
+=item B<assigns> - BOOLEAN - true when the heading assigns its call to a variable, as C<$paths = $obj-E<gt>paths()>
 
 =item B<strength> - HASHREF - per sub, 2 when the heading writes it as a call, 1 when it writes only its bare name
 
@@ -218,6 +222,10 @@ sub _flatten {
     return $text;
 }
 
+# What a heading assigns its call to: a variable, a reference to one, or a list of them in parentheses.
+our $ASSIGNEE = qr/(?:(?:my|our)\s+)? (?:\\?[\$@%]\w+ | \([^()]*\))/;
+our $ASSIGNED = qr/\A $ASSIGNEE \s* =(?![=>~]) \s*/;
+
 sub _heading {
     my ( $self, $text, $line ) = @_;
     $text =~ s/[;#]//g;
@@ -236,6 +244,7 @@ sub _heading {
     return {
         heading      => $text,
         line         => $line,
+        assigns      => $text =~ $ASSIGNED ? 1 : 0,
         functions    => \@functions,
         args         => \%args,
         strength     => \%strength,
@@ -245,10 +254,6 @@ sub _heading {
         verbatim     => [],
     };
 }
-
-# What a heading assigns its call to: a variable, a reference to one, or a list of them in parentheses.
-our $ASSIGNEE = qr/(?:(?:my|our)\s+)? (?:\\?[\$@%]\w+ | \([^()]*\))/;
-our $ASSIGNED = qr/\A $ASSIGNEE \s* =(?![=>~]) \s*/;
 
 # What may follow the last call or name of a heading: what it returns, after an =, or a description after a dash.
 our $DASH         = qr/[-\N{EM DASH}]-?/;

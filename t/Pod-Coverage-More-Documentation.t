@@ -60,6 +60,11 @@ subtest call_headings => sub {
     is( $doc->section_for('preflight_checks')->{args},   { preflight_checks   => [], preflight_notes => ['@extra'] }, "each call of a heading that names two keeps its own argument list" );
 };
 
+subtest assigning_headings => sub {
+    my $doc = read_pod( undef, '=head2 $paths = Some::Class->named_paths()', '=head2 Some::Class->plain_call($x)', '=head2 config($key) = HASHREF' );
+    is( { map { $_->{functions}[0] => $_->{assigns} } $doc->sections }, { named_paths => 1, plain_call => 0, config => 0 }, "a heading that assigns its call says so, and a call alone, or what it returns after an =, does not" );
+};
+
 subtest prose_headings => sub {
     my $doc = read_pod(
         [qw{token helper args cache}],
