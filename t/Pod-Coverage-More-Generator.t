@@ -10,6 +10,7 @@ use Test2::Plugin::NoWarnings;
 use File::Temp qw{tempfile};
 use FindBin;
 use lib "$FindBin::Bin/lib";
+use lib "$FindBin::Bin/elsewhere";
 
 use Pod::Coverage::More;
 use Pod::Coverage::More::Generator;
@@ -58,6 +59,10 @@ subtest inherited_blurbs => sub {
     require BlurbedChild;
     my @names = map { $_->{name} } Pod::Coverage::More::Generator->new( package => 'BlurbedChild' )->sections;
     is( \@names, ['triple'], "an override of a sub that a parent class has a blurb for gets no section, as the parent documents it" );
+
+    require CommentedChild;
+    @names = map { $_->{name} } Pod::Coverage::More::Generator->new( package => 'CommentedChild' )->sections;
+    is( \@names, ['after_release'], "a comment above the sub in a parent class from another tree is no blurb, so the override gets a section" );
 };
 
 subtest the_checks_pass => sub {

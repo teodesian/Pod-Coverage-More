@@ -46,6 +46,8 @@ or else into a new one where this section stands in F<weaver.ini>.
 
 The generator compiles the module to analyze it.  So that a module that is being built never loads into
 the process of the build, it runs in a child perl, with the directory that the module is in on C<@INC>, as F<lib>.
+A file whose package no module file on C<@INC> holds, such as a script that declares C<package Some::Program>,
+loads by its path instead, so a script must run its program only when nothing loads it, as C<exit main(@ARGV) if !caller;> does.
 The module must compile, and its prerequisites must be installed.
 
 =head1 ATTRIBUTES
@@ -105,7 +107,15 @@ our $CHILD = <<'PERL';
 my ( $package, $file, $root ) = @ARGV;
 unshift @INC, $root;
 ( my $module = "$package.pm" ) =~ s{::}{/}g;
-require $module;
+# A script declares a package that no module file holds, so it loads by its path.
+if ( grep { !ref && -f "$_/$module" } @INC ) {
+    require $module;
+}
+else {
+    require File::Spec;
+    $INC{$module} = File::Spec->rel2abs($file);
+    require( $INC{$module} );
+}
 require Pod::Coverage::More::Generator;
 print Pod::Coverage::More::Generator->new( package => $package, file => $file )->pod;
 PERL

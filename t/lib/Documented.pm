@@ -292,6 +292,71 @@ sub empty_signature () {
     return;
 }
 
+=head2 placeholder_method(snapshot)
+
+=over 4
+
+=item snapshot - HashRef - what it ignores, which its signature does not name
+
+=back
+
+    $object->placeholder_method( {} );
+
+=cut
+
+sub placeholder_method ( $self, $ ) {
+    $self->{called} = 1;
+    return;
+}
+
+=head2 placeholders(first, second)
+
+=over 4
+
+=item first - Str - ignored
+
+=item second - Str - ignored too
+
+=back
+
+    Documented::placeholders( 'a', 'b' );
+
+=cut
+
+sub placeholders ( $, $ ) {
+    return;
+}
+
+=head2 placeholder_sigils($snapshot)
+
+    $object->placeholder_sigils( {} );
+
+=cut
+
+sub placeholder_sigils ( $self, $ ) {
+    $self->{called} = 1;
+    return;
+}
+
+=head2 placeholder_extra(snapshot, extra)
+
+=over 4
+
+=item snapshot - HashRef - ignored
+
+=item extra - Str - which the sub does not take
+
+=back
+
+    $object->placeholder_extra( {}, 'x' );
+
+=cut
+
+sub placeholder_extra ( $self, $ ) {
+    $self->{called} = 1;
+    return;
+}
+
 =head2 relay_function(thing)
 
 =over 4
