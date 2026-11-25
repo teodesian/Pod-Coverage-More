@@ -83,15 +83,27 @@ sub sections {
 }
 
 # Whether a parent class has a blurb for the sub NAME, which becomes its section when the parent is woven.
+# Only a parent from the tree of the package counts: it is woven with the package.  A parent from elsewhere, as an
+# installed one, either was woven already, so that its POD documents the sub, or never was, so that its comment is none.
 sub _parent_has_blurb {
     my ( $self, $name ) = @_;
+    my $tree = _tree_of( $self->{package} ) // return 0;
     foreach my $parent ( @{ mro::get_linear_isa( $self->{package} ) } ) {
         next if $parent eq $self->{package};
         my $file = $INC{ module_notional_filename($parent) } or next;
+        next if ( _tree_of($parent) // q{} ) ne $tree;
         $self->{parent_blurbs}{$parent} //= Pod::Coverage::More::Blurb->read_file($file);
         return 1 if $self->{parent_blurbs}{$parent}{$name};
     }
     return 0;
+}
+
+# The directory on @INC that PACKAGE was loaded from, or nothing when it was not loaded from a file.
+sub _tree_of {
+    my ($package) = @_;
+    my $notional  = module_notional_filename($package);
+    my $file      = $INC{$notional} // return;
+    return $file =~ s{/?\Q$notional\E\z}{}r;
 }
 
 # Whether the text of a @throws is a sentence already, as "croaks when", because it starts with a word of termination.
