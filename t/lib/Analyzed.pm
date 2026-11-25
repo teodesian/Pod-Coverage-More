@@ -190,4 +190,25 @@ sub defaulted_empty {
     return [ $x, $y ];
 }
 
+# Methods that die by their contract.
+sub throws {
+    Some::Exception->throw( message => 'no' );
+}
+
+sub logs_fatal {
+    my ($self) = @_;
+    $self->log_fatal('no');
+}
+
+sub logs_and_dies {
+    my ($self) = @_;
+    $self->{log}->logdie('no');
+}
+
+sub logs_only {
+    my ($self) = @_;
+    $self->log_debug('fine');
+    return;
+}
+
 1;
