@@ -82,6 +82,7 @@ and the checks compare its own code with the section of the parent.
 =item B<arguments> - each argument that the POD names is a parameter of the sub: a variable assigned from C<@_>,
 a parameter of a signature, a key of a hash of named arguments, or a parameter that a class builder or a signature module declares.
 A parameter with no name, such as the placeholder C<$> in C<sub check ($self, $)>, takes whatever name the POD gives the argument at its position.
+A slurpy parameter with no name, as the C<@> in C<sub capture ($self, @)>, takes every argument from its position on, whatever their names.
 An argument beyond the parameters of the sub still fails.
 
 =item B<argument_types> - each argument has a documented type that agrees with the code.  A documented type must be the type that
@@ -239,7 +240,7 @@ sub _accepted_names {
 }
 
 # The arguments in ARGS, the list of the POD, that stand at the position of a parameter with no name,
-# such as a placeholder in a signature, which the POD may call anything.
+# such as a placeholder in a signature, which the POD may call anything, or at or after a slurpy one with no name.
 sub _at_unnamed_params {
     my ( $rec, @args ) = @_;
     my ( @params, %invocants );
@@ -254,7 +255,15 @@ sub _at_unnamed_params {
     foreach my $arg (@args) {
         push @listed, $arg if !$invocants{ Pod::Coverage::More::Documentation->bare_name($arg) };
     }
-    return map { $listed[$_] } grep { $_ <= $#params && !defined $params[$_]{name} } 0 .. $#listed;
+
+    # A slurpy parameter takes every argument from its position on, so an argument beyond it stands at it.
+    my @unnamed;
+    foreach my $at ( 0 .. $#listed ) {
+        my $param = $at <= $#params ? $params[$at] : $params[-1];
+        next if !$param || ( $at > $#params && !$param->{slurpy} );
+        push @unnamed, $listed[$at] if !defined $param->{name};
+    }
+    return @unnamed;
 }
 
 # Whether PARAM is the object or class that a method is called on, whose keys are its fields and not named arguments.
