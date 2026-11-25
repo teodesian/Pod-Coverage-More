@@ -4,7 +4,7 @@ Pod::Coverage::More - Make sure your POD covers more ground than just subroutine
 
 # VERSION
 
-version 0.003
+version 0.004
 
 # SYNOPSIS
 
@@ -52,6 +52,10 @@ Returns a Image object.  Dies when either size is not positive.
 ```
 
 For several functions on one line, separate them with commas or spaces; for arguments, use commas.
+A heading of prose, such as `=head2 The token cache`, names no sub, even when one of its words is the name of one.
+A heading can call the sub on an object or a class, as `=head2 $image->resize($width, $height)`,
+but a heading that assigns the call, as `=head2 $smaller = $image->resize($width, $height)`, is an example,
+which belongs in a verbatim block of the section, and fails **examples**.
 An argument list can give the sigils of the arguments, as `($foo, @bar, \%baz)`.
 Then the sigils are compared with those of the parameters, and no `=item` is needed.
 
@@ -61,13 +65,19 @@ Each check applies to the public subs that have a section in the POD.
 A sub without one is the business of `coverage`.
 The code of a stub, a sub with no signature that reads nothing of `@_`, such as a default that subclasses override,
 shows nothing of its arguments, and neither does an XS sub; so the argument checks take their POD on the author's word.
+So do they for an abstract method, a sub that takes at most its invocant and never returns, as one that dies
+for a subclass that does not override it, directly or through a helper: its POD documents the interface that the overrides implement.
 A sub with a signature, even an empty one, declares its arguments, and they are checked.
 A sub that a parent class documents counts as documented, as [Pod::Coverage::CountParents](https://metacpan.org/pod/Pod%3A%3ACoverage%3A%3ACountParents) counts it,
 and the checks compare its own code with the section of the parent.
+That section documents the interface that callers use, and an override may ignore arguments that they pass,
+so an argument of the section that the override does not take is no failure of **arguments** or **argument\_types**.
 
 - **arguments** - each argument that the POD names is a parameter of the sub: a variable assigned from `@_`,
 a parameter of a signature, a key of a hash of named arguments, or a parameter that a class builder or a signature module declares.
-A parameter with no name, such as the placeholder `$` in `sub check ($self, $)`, takes whatever name the POD gives the argument at its position.
+A parameter with no name, such as the placeholder `$` in `sub check ($self, $)`
+or the `undef` in `my ($self, undef) = @_`, takes whatever name the POD gives the argument at its position.
+A slurpy parameter with no name, as the `@` in `sub capture ($self, @)`, takes every argument from its position on, whatever their names.
 An argument beyond the parameters of the sub still fails.
 - **argument\_types** - each argument has a documented type that agrees with the code.  A documented type must be the type that
 the code declares or a narrower one, so that the POD never promises that the sub takes what it refuses.
@@ -84,7 +94,8 @@ covers it, because the code shows the kind of the value and not what is inside i
 The type of the result of an operator, such as `$x * 2`, is only probable, because an operand of a class that overloads the operator
 makes the result an object of that class, as [Math::GMP](https://metacpan.org/pod/Math%3A%3AGMP) does; so such a type fails only when it is of another kind than every documented one
 - **termination** - a sub that can die, croak, confess, throw or exit, outside an `eval` or `try`, says so
-- **examples** - the section has a verbatim paragraph that calls the sub, by `name(` or `->name`
+- **examples** - the section has a verbatim paragraph that calls the sub, by `name(` or `->name`,
+and its heading does not assign the call to a variable, which makes the heading an example
 
 # METHODS
 
@@ -143,7 +154,7 @@ my $result = $pc->coverage_examples;
 
 ## coverage\_report
 
-The failures of each check, for each public sub that has a section in the POD: a HASHREF from the name of the sub to a HASHREF with `section`, the section that `section_for` returns, and `failures`, a HASHREF from the name of each check in THE CHECKS to an ARRAYREF of the messages of its failures, empty when it passes. The report is made once.  Nothing when there is no POD to rate, and `why_unrated` says why.
+The failures of each check, for each public sub that has a section in the POD: a HASHREF from the name of the sub to a HASHREF with `section`, the section that `section_for` returns, `inherited`, true when that section is in the POD of a parent class, and `failures`, a HASHREF from the name of each check in THE CHECKS to an ARRAYREF of the messages of its failures, empty when it passes. The report is made once.  Nothing when there is no POD to rate, and `why_unrated` says why.
 
 Returns HashRef, the report.
 
@@ -169,6 +180,18 @@ Returns HashRef, with status and message.
 
 ```perl
 my $result = $pc->coverage_termination;
+```
+
+## own\_section\_for(name)
+
+The section that documents the sub `name` in the POD of the package itself, not of a parent class. Nothing when the POD of the package does not document it.
+
+- name - Str - the name of the sub
+
+Returns HashRef, the section.
+
+```perl
+my $section = $pc->own_section_for('coverage');
 ```
 
 ## public\_subs
