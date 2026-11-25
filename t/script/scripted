@@ -6,9 +6,6 @@ package Scripted::Program;
 use 5.036;
 use warnings FATAL => q{all};
 
-# The @example lines of the blurbs are code in comments, which is what they are for.
-## no critic (Bangs::ProhibitCommentedOutCode)
-
 # Greet somebody.
 # @param   name  Str  who to greet
 # @returns Str  the greeting
