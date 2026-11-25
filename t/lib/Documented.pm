@@ -486,7 +486,104 @@ sub records_as_hash ($names) {
     return [ map { { name => $_ } } @$names ];
 }
 
-=head2 $kept = $object->named_in_heading($domain, leave_down => $bool)
+=head2 anonymous_slurpy(wait, seconds)
+
+=over 4
+
+=item wait - Int - ignored, as the signature takes it in a slurpy with no name
+
+=item seconds - Int - ignored too
+
+=back
+
+    $object->anonymous_slurpy( 1, 2 );
+
+=cut
+
+sub anonymous_slurpy ( $self, @ ) {
+    $self->{called} = 1;
+    return;
+}
+
+=head2 named_before_anonymous_slurpy(count, colour, size)
+
+=over 4
+
+=item count - Int - how many
+
+=item colour - Str - ignored, as the signature takes it in a slurpy with no name
+
+=item size - Int - ignored too
+
+=back
+
+    $object->named_before_anonymous_slurpy( 1, colour => 'red', size => 2 );
+
+=cut
+
+sub named_before_anonymous_slurpy ( $self, $count, % ) {
+    $self->{count} = $count;
+    return;
+}
+
+=head2 anonymous_slurpy_misnamed(total, options)
+
+=over 4
+
+=item total - Int - which is no parameter
+
+=item options - HashRef - ignored
+
+=back
+
+    $object->anonymous_slurpy_misnamed( 1, {} );
+
+=cut
+
+sub anonymous_slurpy_misnamed ( $self, $count, @ ) {
+    $self->{count} = $count;
+    return;
+}
+
+=head2 $sum = Documented->assigned_heading($x, $y)
+
+Returns Int.
+
+    my $sum = Documented->assigned_heading( 1, 2 );
+
+=cut
+
+sub assigned_heading {
+    my ( $class, $x, $y ) = @_;
+    return int( $x + $y );
+}
+
+=head2 @pairs = Documented->assigned_heading_alone(%opts)
+
+Returns nothing.
+
+=cut
+
+sub assigned_heading_alone {
+    my ( $class, %opts ) = @_;
+    $opts{seen} = 1;
+    return;
+}
+
+=head2 Documented->called_heading($x)
+
+Returns Int.
+
+    my $int = Documented->called_heading(2.5);
+
+=cut
+
+sub called_heading {
+    my ( $class, $x ) = @_;
+    return int($x);
+}
+
+=head2 $object->named_in_heading($domain, leave_down => $bool)
 
 Returns Bool.
 
@@ -500,7 +597,7 @@ sub named_in_heading {
     return $opts{leave_down} ? 1 : 0;
 }
 
-=head2 $kept = $object->wrongly_named_in_heading($domain, stay_down => $bool)
+=head2 $object->wrongly_named_in_heading($domain, stay_down => $bool)
 
 Returns Bool.
 
