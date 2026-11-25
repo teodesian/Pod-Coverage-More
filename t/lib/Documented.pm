@@ -292,4 +292,40 @@ sub empty_signature () {
     return;
 }
 
+=head2 records(names)
+
+=over 4
+
+=item names - ArrayRef[Str] - whose records to make
+
+=back
+
+Returns ArrayRef[HashRef], one record for each name.
+
+    my $records = Documented::records( ['a'] );
+
+=cut
+
+sub records ($names) {
+    return [ map { { name => $_ } } @$names ];
+}
+
+=head2 records_as_hash(names)
+
+=over 4
+
+=item names - ArrayRef[Str] - whose records to make
+
+=back
+
+Returns HashRef[HashRef], which is no array.
+
+    my $records = Documented::records_as_hash( ['a'] );
+
+=cut
+
+sub records_as_hash ($names) {
+    return [ map { { name => $_ } } @$names ];
+}
+
 1;
