@@ -177,6 +177,15 @@ subtest dies => sub {
     is( $subs->{logs_only}{dies}, [], "a log method of another level is no termination" );
 };
 
+subtest never_returns => sub {
+    ok( $subs->{refuses_too}{never_returns},          "a sub whose every path dies never returns" );
+    ok( $subs->{abstract_via_lexical}{never_returns}, "nor does one whose every path calls a lexical sub that never returns" );
+    ok( $subs->{abstract_via_package}{never_returns}, "or a sub of its package that never returns" );
+    is( $subs->{abstract_via_lexical}{returns}, [], "and the value of that call is no return value" );
+    ok( !$subs->{sometimes_refuses}{never_returns}, "but a sub that returns on another path does return" );
+    is( $subs->{abstract_via_lexical}{dies}, [], "a call that never returns is no termination of the caller's own" );
+};
+
 subtest signatures => sub {
     my $signed = $analyzer->analyze_package('Signed');
     is( params_of( $signed->{plain} ),                  [ '$x#0:signature', '$y#1:signature' ],                       "two mandatory parameters" );

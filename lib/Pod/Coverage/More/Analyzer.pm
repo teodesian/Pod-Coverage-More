@@ -139,7 +139,7 @@ sub new {
     my ($class) = @_;
     my $backend = $class eq __PACKAGE__ ? backend_for($]) : $class;
     require_module($backend) if $backend ne $class;
-    return bless( {}, $backend );
+    return bless( { never_returns => {} }, $backend );
 }
 
 # The subclass that handles the perl C<version>.
@@ -245,6 +245,10 @@ C<weak>, true when the value is the result of an operator, which overloading can
 
 =item B<dies> - ARRAYREF - one HASHREF per explicit termination, with C<via>, C<line> and C<caught>
 
+=item B<never_returns> - BOOLEAN - true when no path of the sub returns: each ends in a termination outside C<eval>,
+or in a call of a sub of its package or a lexical sub that never returns, as a helper that dies for an abstract method.
+The value of such a call is no return value, and the call is no termination of the sub's own
+
 =back
 
 =cut
@@ -271,6 +275,7 @@ sub analyze_sub {
         usage      => {},
         returns    => [],
         dies       => [],
+        ends_in    => [],
     );
 
     if ( $cv->CvFLAGS & B::CVf_CONST ) {
@@ -308,6 +313,7 @@ sub analyze_sub {
     $walker->_walk( $cv->ROOT, [] );
     push @{ $rec{returns} }, map { +{ %$_, implicit => 1 } } $walker->_implicit_returns( $cv->ROOT );
     $walker->finish_sub( \%rec );
+    $rec{never_returns} = ( !@{ $rec{returns} } && any { !$_->{caught} } @{ $rec{dies} }, @{ delete $rec{ends_in} } ) ? 1 : 0;
 
     # A class taken from the invocant is the package or a subclass, and an object of either is an instance of the package.
     my ($invocant) = grep { $_->{index} == 0 && defined $_->{name} } @{ $rec{params} };
@@ -525,7 +531,9 @@ sub classify {
     }
     if ( $name eq 'entersub' ) {
         my ($target) = $self->_call_target($op);
-        return $target // { type => 'call' };
+        return { type => 'call' } if !$target;
+        return                    if $self->_never_returns($target);
+        return $target;
     }
     return _weak( { type => 'boolean' } ) if $BOOLEAN_OPS{$name};
     if ( $NUMBER_OPS{$name} ) {
@@ -1131,7 +1139,11 @@ sub _call_target {
     my $cvop = _unwrap($target);
     $cvop = _unwrap( ( _kids($cvop) )[0] ) if $cvop->name eq 'rv2cv' && _kids($cvop);
     if ( $cvop->name eq 'gv' ) {
-        return ( { type => 'call', function => _sub_fullname( $self->_gv($cvop) ) }, \@args );
+        my $gv = $self->_gv($cvop);
+        return ( { type => 'call', function => _sub_fullname($gv), $gv->STASH->NAME eq $self->{rec}{package} ? ( cv => $gv->CV ) : () }, \@args );
+    }
+    if ( $cvop->name eq 'padcv' ) {
+        return ( { type => 'call', lexical => $self->_padname( $cvop->targ ) =~ s/\A&//r, cv => $self->_padval( $cvop->targ ) }, \@args );
     }
     if ( $cvop->name eq 'padsv' ) {
         return ( { type => 'call', coderef => $self->_padname( $cvop->targ ) }, \@args );
@@ -1159,7 +1171,27 @@ sub _on_entersub {
     if ( defined $target->{function} && $TERMINATORS{ $target->{function} } ) {
         $self->_add_death( $target->{function}, $ancestors );
     }
+    elsif ( $self->_never_returns($target) ) {
+        push @{ $self->{rec}{ends_in} }, { via => $target->{lexical} // $target->{function}, caught => _is_caught($ancestors) ? 1 : 0 };
+    }
     return;
+}
+
+# Whether the call TARGET never returns: a terminator, as croak, or a sub whose record says that it never returns.
+# Only a sub of the package or a lexical sub has a CV in its target, so that the analysis stays in the code at hand.
+sub _never_returns {
+    my ( $self, $target ) = @_;
+    return 1 if $target->{type} eq 'method' && $TERMINATING_METHODS{ $target->{method} // q{} };
+    return 1 if defined $target->{function} && $TERMINATORS{ $target->{function} };
+    my $cv = $target->{cv} or return 0;
+    return 0 if B::class($cv) ne 'CV' || !${ $cv->ROOT };
+
+    # A sub that calls itself is taken to return while its own analysis runs.
+    my $memo = $self->{never_returns};
+    return $memo->{$$cv} if exists $memo->{$$cv};
+    $memo->{$$cv} = 0;
+    my $rec = $self->analyze_sub( $cv->object_2svref, $target->{lexical} // $cv->GV->NAME, $self->{rec}{package} );
+    return $memo->{$$cv} = $rec->{never_returns};
 }
 
 # Records METHOD as called on the variable that INVOCANT reads, when it reads one.
