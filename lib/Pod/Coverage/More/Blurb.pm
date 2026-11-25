@@ -46,7 +46,8 @@ and no type of a value describes a list.
 
 =item C<@throws DESCRIPTION> - how the sub fails; C<@dies> is the same tag
 
-=item C<@example CODE> - one line of an example; consecutive lines make one example
+=item C<@example CODE> - one line of an example; consecutive lines make one example,
+and each line keeps its indentation relative to the first, as does a line without a tag below them
 
 =back
 
@@ -162,13 +163,13 @@ sub _parse {
         last_tag  => q{},
     };
     foreach my $line (@lines) {
-        my ( $tag, $rest ) = $line =~ m/\A\s*\@(\w+)\b\s*(.*)\z/;
+        my ( $tag, $after ) = $line =~ m/\A\s*\@(\w+)\b(.*)\z/;
         my $handler = defined $tag ? $TAG_HANDLERS{ lc $tag } : undef;
         if ( !$handler ) {
             _untagged( $state, $line );
             next;
         }
-        $handler->( $state, $rest );
+        $handler->( $state, $after =~ s/\A\s+//r, $after );
         $state->{last_tag} = lc $tag;
     }
     _end_paragraph($state);
@@ -225,14 +226,16 @@ sub _tag_throws {
     return;
 }
 
-# Consecutive @example lines make one example.
+# Consecutive @example lines make one example, and each keeps its indentation relative to the first, from AFTER the tag.
 sub _tag_example {
-    my ( $state, $rest ) = @_;
+    my ( $state, $rest, $after ) = @_;
     my $examples = $state->{blurb}{examples};
     if ( $state->{last_tag} eq 'example' && @$examples ) {
-        push @{ $examples->[-1] }, $rest;
+        my $indent = $state->{example_indent};
+        push @{ $examples->[-1] }, $after =~ s/\A[ ]{0,$indent}//r;
     }
     else {
+        $state->{example_indent} = length( $after =~ s/\S.*\z//r );
         push @$examples, [$rest];
     }
     $state->{current} = { example => $examples->[-1] };
