@@ -85,7 +85,11 @@ our %TERMINATORS = map { $_ => 1 } qw{
   Carp::croak Carp::confess
   POSIX::_exit
 };
-our %BOOLEAN_OPS = map { $_ => 1 } qw{
+
+# Methods that die by their contract: an exception class's throw, and the fatal level of a logger, as
+# Log::Dispatchouli and so Dist::Zilla's log_fatal, and Log::Log4perl's logdie, logcroak and logconfess.
+our %TERMINATING_METHODS = map { $_ => 1 } qw{throw log_fatal logdie logcroak logconfess};
+our %BOOLEAN_OPS         = map { $_ => 1 } qw{
   not defined exists
   lt gt le ge eq ne i_lt i_gt i_le i_ge i_eq i_ne
   slt sgt sle sge seq sne
@@ -1112,7 +1116,7 @@ sub _on_entersub {
 
     if ( $target->{type} eq 'method' ) {
         $self->_add_method_use( $args->[0], $target->{method} );
-        $self->_add_death( 'throw', $ancestors ) if ( $target->{method} // '' ) eq 'throw';
+        $self->_add_death( $target->{method}, $ancestors ) if $TERMINATING_METHODS{ $target->{method} // q{} };
         return;
     }
     if ( defined $target->{coderef} ) {

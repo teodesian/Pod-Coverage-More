@@ -166,6 +166,10 @@ subtest dies => sub {
     is( $subs->{shifted}{dies}, [], "a sub with no explicit termination" );
     like( $subs->{exits_hard}{dies}, [ { via => q{POSIX::_exit}, caught => 0 } ], "POSIX::_exit terminates" );
     is( $subs->{clucks}{dies}, [], "Carp::cluck only warns, so it is no termination" );
+    like( $subs->{throws}{dies},        [ { via => 'throw',     caught => 0 } ], "an exception class's throw terminates" );
+    like( $subs->{logs_fatal}{dies},    [ { via => 'log_fatal', caught => 0 } ], "so does log_fatal, as Dist::Zilla's logger dies there" );
+    like( $subs->{logs_and_dies}{dies}, [ { via => 'logdie',    caught => 0 } ], "and Log::Log4perl's logdie" );
+    is( $subs->{logs_only}{dies}, [], "a log method of another level is no termination" );
 };
 
 subtest signatures => sub {
