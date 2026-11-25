@@ -412,6 +412,44 @@ sub relay_or_variable ($thing) {
     return $thing;
 }
 
+=head2 list_elements(snapshot, paths)
+
+=over 4
+
+=item snapshot - HashRef - what to look in
+
+=item @paths - Str - each path to look for
+
+=back
+
+    my @missing = Documented::list_elements( {}, 'a', 'b' );
+
+Returns the paths that the snapshot does not have.
+
+=cut
+
+sub list_elements ( $snapshot, @paths ) {
+    return grep { !$snapshot->{$_} } @paths;
+}
+
+=head2 scalar_as_list(path)
+
+=over 4
+
+=item @path - Str - which is one path, and no list
+
+=back
+
+    my $path = Documented::scalar_as_list('a');
+
+Returns the path.
+
+=cut
+
+sub scalar_as_list ($path) {
+    return $path;
+}
+
 =head2 records(names)
 
 =over 4
