@@ -540,6 +540,17 @@ sub section_for {
     return;
 }
 
+# The section that documents the sub C<name> in the POD of the package itself, not of a parent class.
+# Nothing when the POD of the package does not document it.
+# @param   name  Str  the name of the sub
+# @returns HashRef  the section
+# @example my $section = $pc->own_section_for('coverage');
+sub own_section_for {
+    my ( $self, $name ) = @_;
+    my $documentation = $self->_documentation or return;
+    return $documentation->section_for($name);
+}
+
 # The analysis of every sub of the package, as C<analyze_package> of L<Pod::Coverage::More::Analyzer> returns it.
 # The package is analyzed once.
 # @returns HashRef  from the name of each sub to the record of its analysis
