@@ -4,7 +4,7 @@ Pod::Coverage::More - Make sure your POD covers more ground than just subroutine
 
 # VERSION
 
-version 0.002
+version 0.003
 
 # SYNOPSIS
 
@@ -66,13 +66,21 @@ A sub that a parent class documents counts as documented, as [Pod::Coverage::Cou
 and the checks compare its own code with the section of the parent.
 
 - **arguments** - each argument that the POD names is a parameter of the sub: a variable assigned from `@_`,
-a parameter of a signature, a key of a hash of named arguments, or a parameter that a class builder or a signature module declares
+a parameter of a signature, a key of a hash of named arguments, or a parameter that a class builder or a signature module declares.
+A parameter with no name, such as the placeholder `$` in `sub check ($self, $)`, takes whatever name the POD gives the argument at its position.
+An argument beyond the parameters of the sub still fails.
 - **argument\_types** - each argument has a documented type that agrees with the code.  A documented type must be the type that
 the code declares or a narrower one, so that the POD never promises that the sub takes what it refuses.
 A type that the code only implies by its use of the argument fails only when it contradicts the documented one,
 as a hash reference where the code uses an array reference.
+The type of a list parameter, such as `@paths`, is `ARRAY` or `HASH`, or else an item that keeps the sigil,
+as `=item @paths - Str`, gives the type of each element.
 - **returns** - a sub that returns a value says so with a `Returns` paragraph or an `=item Returns`,
 and the documented types cover every type that the code returns or declares.
+A sub whose POD says that it returns nothing may return the value of a call, such as `$self->SUPER::update(@_)`,
+because what the call returns is not in its code; any other value that it returns fails.
+A documented parameterization of a type that the code returns, such as `ArrayRef[HashRef]` for `[ map { {...} } @list ]`,
+covers it, because the code shows the kind of the value and not what is inside it.
 The type of the result of an operator, such as `$x * 2`, is only probable, because an operand of a class that overloads the operator
 makes the result an object of that class, as [Math::GMP](https://metacpan.org/pod/Math%3A%3AGMP) does; so such a type fails only when it is of another kind than every documented one
 - **termination** - a sub that can die, croak, confess, throw or exit, outside an `eval` or `try`, says so

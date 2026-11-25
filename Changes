@@ -1,5 +1,20 @@
 Revision history for Pod-Coverage-More
 
+0.003 2026-11-25 TEODESIAN
+    - Leave the files for development, such as dist.ini and CLAUDE.md, out of the tarball
+    - Declare aspell and its English dictionary as system packages in META.json, so that a host that installs them checks the spelling of the POD
+    - Stop dying with "Can't call method name on an undefined value" on a ternary with an empty list as a branch, such as $x ? lc $x : ()
+    - Stop the warnings "Missing argument in sprintf" and "Invalid conversion in sprintf" for POD whose prose has a % in it
+    - [Blurbs] writes the POD of an override whose parent class is installed and has only a comment above the sub, rather than taking that comment for a blurb
+    - The termination check counts log_fatal, as Dist::Zilla plugins call it, and the logdie, logcroak and logconfess of Log::Log4perl, as ways to die
+    - [Blurbs] puts "Dies" before a @throws that names an exception class, such as "with a Some::Exception when ...", so the sentence has a verb
+    - Weave the blurbs of a script whose package has no module file of its own
+    - Accept any name in the POD for a placeholder parameter of a signature, at its position
+    - Document the elements of a slurpy array or hash in a blurb as @param @paths Str, and in POD as =item @paths - Str
+    - Accept a documented return type that parameterizes the type that the code returns, as ArrayRef[HashRef] for an ArrayRef
+    - Do not report a sub whose POD says it returns nothing for returning the value of a call
+    - On perl 5.36 to 5.42, report the empty list of a ternary, such as $x ? lc $x : (), as an empty return and not an unknown value
+
 0.002 2026-11-24 TEODESIAN
     - Count a sub that =for Pod::Coverage names as documented, as Pod::Coverage::TrustPod does
     - Add [Test::Pod::Coverage::More], a Dist::Zilla plugin that adds xt/author/pod-coverage-more.t in place of [PodCoverageTests]
