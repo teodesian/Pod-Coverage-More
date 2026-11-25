@@ -51,6 +51,7 @@ subtest type_named => sub {
     is( name_of( type_named('ConsumerOf["Foo"]') ),                 'ConsumerOf["Foo"]', "a Types::Standard expression whose type Pod::Coverage::More::Types does not import" );
     is( name_of( type_named('Enum["a","b"]') ),                     'Enum["a","b"]',     "such as Enum" );
     is( name_of( type_named('Tuple[Int,Str]') ),                    'Tuple[Int,Str]',    "and Tuple" );
+    is( name_of( type_named('443') ),                               q{-},                "a number names no type" );
     is( name_of( type_named('NoSuchType') ),                        q{-},                "a name that no library has" );
     is( name_of( type_named(undef) ),                               q{-},                "no name" );
     is( name_of( type_named('fail2ban reads C<%> as a variable') ), q{-},                "prose with a % in it names no type, and warns of nothing" );
