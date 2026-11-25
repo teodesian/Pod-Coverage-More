@@ -7,7 +7,8 @@ use 5.036;
 use warnings FATAL => q{all};
 use re q{/xsaa};
 
-use Exporter qw{import};
+use Exporter     qw{import};
+use Scalar::Util qw{blessed};
 use Type::Registry;
 use Type::Tiny::Intersection;
 use Type::Tiny::Union;
@@ -178,6 +179,9 @@ sub type_named {
     my $registry = Type::Registry->for_class(__PACKAGE__);
     $registry->add_types('Types::Standard') if !$registry->simple_lookup('Str');
     my $type = eval { $registry->lookup($name) };
+
+    # The parser of Type::Registry reads a number as a value, and gives it back as it is.
+    return if !blessed($type) || !$type->isa('Type::Tiny');
     return $type;
 }
 
