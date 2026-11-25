@@ -85,7 +85,11 @@ our %TERMINATORS = map { $_ => 1 } qw{
   Carp::croak Carp::confess
   POSIX::_exit
 };
-our %BOOLEAN_OPS = map { $_ => 1 } qw{
+
+# Methods that die by their contract: an exception class's throw, and the fatal level of a logger, as
+# Log::Dispatchouli and so Dist::Zilla's log_fatal, and Log::Log4perl's logdie, logcroak and logconfess.
+our %TERMINATING_METHODS = map { $_ => 1 } qw{throw log_fatal logdie logcroak logconfess};
+our %BOOLEAN_OPS         = map { $_ => 1 } qw{
   not defined exists
   lt gt le ge eq ne i_lt i_gt i_le i_ge i_eq i_ne
   slt sgt sle sge seq sne
@@ -442,7 +446,7 @@ sub _last_values {
         my $line = $self->{line_of}{$$op};
         my @values;
         foreach my $branch ( ( _branches($op) )[ 1, 2 ] ) {
-            push @values, $branch ? $self->_last_values($branch) : { type => 'empty', line => $line };
+            push @values, _is_empty_list($branch) ? { type => 'empty', line => $line } : $self->_last_values($branch);
         }
         return @values;
     }
@@ -469,7 +473,7 @@ sub _last_values {
 # @example my @evidence = $self->classify($op);
 sub classify {
     my ( $self, $op ) = @_;
-    return { type => 'empty' } if !$op;
+    return { type => 'empty' } if _is_empty_list($op);
     $op = _unwrap($op);
     my $name = $op->name;
 
@@ -559,6 +563,13 @@ sub _branches {
     return ( $cond, @branches ) if @branches != 1;
     return ( $cond, $branches[0], undef ) if _holds( $branches[0], $op->other );
     return ( $cond, undef, $branches[0] );
+}
+
+# Whether OP is an empty list: a branch that perl left out of the op tree, as 5.44 does with the () of a ternary,
+# or the stub op that older perls compile it to.
+sub _is_empty_list {
+    my ($op) = @_;
+    return !$op || $op->name eq 'stub';
 }
 
 # Whether TARGET is OP or an op under it.
@@ -1138,7 +1149,7 @@ sub _on_entersub {
 
     if ( $target->{type} eq 'method' ) {
         $self->_add_method_use( $args->[0], $target->{method} );
-        $self->_add_death( 'throw', $ancestors ) if ( $target->{method} // '' ) eq 'throw';
+        $self->_add_death( $target->{method}, $ancestors ) if $TERMINATING_METHODS{ $target->{method} // q{} };
         return;
     }
     if ( defined $target->{coderef} ) {

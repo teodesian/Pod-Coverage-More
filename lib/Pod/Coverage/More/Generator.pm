@@ -40,6 +40,9 @@ A sub whose code shows no parameters, as a stub, takes the arguments of its blur
 =item The return value is the C<@returns>, or else the type that the code declares,
 or else the types of the values that it returns for certain, as literals and C<bless> into a class.
 
+=item Each C<@throws> is a sentence of its own.  It starts with "Dies", unless its text starts with a verb that says how,
+such as C<croaks when>.
+
 =back
 
 The result of an operator and the uses of a variable are only probable, so they are never written.
@@ -103,6 +106,13 @@ sub _tree_of {
     return $file =~ s{/?\Q$notional\E\z}{}r;
 }
 
+# Whether the text of a @throws is a sentence already, as "croaks when", because it starts with a word of termination.
+# The noun "exception" does not count: "with a Some::Exception" still needs "Dies".
+sub _says_how_it_dies {
+    my ($throws) = @_;
+    return $throws =~ m/\A$Pod::Coverage::More::Documentation::TERMINATION/ && $throws !~ m/\Aexceptions?\b/i;
+}
+
 # The text of all the sections, one after another.
 # @returns Str  the POD, or the empty string when no sub gets a section
 # @example my $pod = $generator->pod;
@@ -132,7 +142,7 @@ sub _section {
     my $returns = _returns( $blurb, $rec );
     $pod .= "$returns\n\n" if defined $returns;
     foreach my $throws ( @{ $blurb->{throws} } ) {
-        $pod .= _sentence( $throws =~ $Pod::Coverage::More::Documentation::TERMINATION ? $throws : "Dies $throws" ) . "\n\n";
+        $pod .= _sentence( _says_how_it_dies($throws) ? $throws : "Dies $throws" ) . "\n\n";
     }
     foreach my $example ( @{ $blurb->{examples} } ) {
         $pod .= join( "\n", map { "    $_" } @$example ) . "\n\n";
