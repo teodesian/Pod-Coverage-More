@@ -43,8 +43,28 @@ if you raise or lower the floor, change the profile as well as the `use` lines.
 | `Changes` | what changed and when, per release |
 | `dist.ini` | the build, and what has to be installed to run it |
 
-The op tree changes between perl versions.  If you change the analysis, run the
-tests on one perl of each version set: 5.36, 5.38 to 5.42, and 5.44 or later.
+The op tree changes between perl versions.  If you change the code under
+`lib/`, run the tests on one perl of each version set: 5.36, 5.38 to 5.42, and
+5.44 or later.  A test that passes on one perl says nothing about the others.
+For example, 5.44 leaves the `()` of a ternary out of the op tree, and 5.36 to
+5.42 compile it to a `stub` op.
+
+The perl on the `PATH` is one of them.  perlbrew has the others.  `perlbrew
+list` names them, and `perlbrew exec` runs the tests with one:
+
+```
+perlbrew list
+perlbrew exec --with perl-5.36.3 prove -lr t
+```
+
+If a perl of perlbrew lacks a prerequisite, install the prerequisites into
+that perl.  Run `cpanm` with that perl, so that it installs there:
+
+```
+dzil listdeps | grep -vx perl | xargs ~/perl5/perlbrew/perls/perl-5.36.3/bin/perl "$(command -v cpanm)" --notest
+```
+
+In the pull request, name each perl that you ran the tests on.
 
 ## Finishing a changeset
 
