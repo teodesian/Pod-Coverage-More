@@ -36,6 +36,8 @@ A section says what the blurb says, and fills in what the code declares where th
 A sub whose code shows no parameters, as a stub, takes the arguments of its blurb.
 
 =item The type of an argument is the type in its C<@param>, or else the type that the code declares.
+A C<@param> that names a list parameter with its sigil, as C<@param @paths Str>, gives the type of each element,
+and its item keeps the sigil, as C<=item @paths - Str>.
 
 =item The return value is the C<@returns>, or else the type that the code declares,
 or else the types of the values that it returns for certain, as literals and C<bless> into a class.
@@ -111,7 +113,7 @@ sub _section {
     if (@args) {
         $pod .= "=over 4\n\n";
         foreach my $arg (@args) {
-            my @parts = ( $arg->{name}, $arg->{type} ? $arg->{type}->display_name : (), $arg->{description} ne q{} ? $arg->{description} : () );
+            my @parts = ( "$arg->{sigil}$arg->{name}", $arg->{type} ? $arg->{type}->display_name : (), $arg->{description} ne q{} ? $arg->{description} : () );
             $pod .= '=item ' . join( ' - ', @parts ) . "\n\n";
         }
         $pod .= "=back\n\n";
@@ -156,6 +158,7 @@ sub _arguments {
         my $documented = $documented{$name} // {};
         push @args, {
             name        => $name,
+            sigil       => ( $documented->{name} // q{} ) =~ m/\A([@%])/ ? $1 : q{},
             type        => $documented->{type}        // ( $param ? $param->{declared} : undef ),
             description => $documented->{description} // q{},
         };

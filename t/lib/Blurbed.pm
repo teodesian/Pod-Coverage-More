@@ -5,9 +5,6 @@ package Blurbed;
 use 5.036;
 use warnings FATAL => q{all};
 
-# The @example lines of the blurbs are code in comments, which is what they are for.
-## no critic (Bangs::ProhibitCommentedOutCode)
-
 =head1 NAME
 
 Blurbed - subs that a blurb documents
@@ -63,6 +60,15 @@ sub hook {
 sub maybe {
     my ($x) = @_;
     return $x ? bless( {}, 'Blurbed' ) : undef;
+}
+
+# The paths that a snapshot does not have.
+# @param   snapshot  HashRef  what to look in
+# @param   @paths    Str  each path to look for
+# @returns the paths, as a list
+# @example my @missing = Blurbed::missing( {}, 'a', 'b' );
+sub missing ( $snapshot, @paths ) {
+    return grep { !$snapshot->{$_} } @paths;
 }
 
 sub plain {

@@ -43,6 +43,11 @@ L<Pod::Coverage::More::Types> reads:
     =item count - INTEGER - how many
     =item B<input> (ArrayRef[Str]) - the lines
 
+An item whose name has the sigil C<@> or C<%> documents a list parameter, and its type is the type of each element,
+or of each value of the hash:
+
+    =item @paths - Str - each path to look for
+
 A paragraph that starts with C<Returns>, or an C<=item Returns>, documents the return value:
 
     Returns HashRef[Str] or undef when the file is empty.
@@ -65,7 +70,7 @@ C<section_for> returns a HASHREF with these keys:
 
 =item B<types> - HASHREF - per sub, a HASHREF from the lower case name of an argument without sigils to its documented type:
 a HASHREF with C<word>, the lower case text of the type, and C<type>, its L<Type::Tiny> constraint or undef,
-or a C<word> of the empty string for an item with no type
+or a C<word> of the empty string for an item with no type, and C<sigil>, the C<@> or C<%> that the item wrote before the name, or undef
 
 =item B<returns> - ARRAYREF - one HASHREF per statement of the return value, with C<types>, an ARRAYREF of L<Type::Tiny> constraints,
 C<nothing>, true for "Returns nothing", C<text> and C<line>
@@ -274,7 +279,7 @@ sub _item {
     elsif ( $rest =~ m/\A[-:\s]*(.*?)\s*(?:\s-\s|:\s|\z)/ ) { $word = $1 }
     $word =~ s/\A\s+|\s+\z//g;
     my $type       = type_named($word);
-    my $documented = { word => $type ? lc $word : q{}, type => $type };
+    my $documented = { word => $type ? lc $word : q{}, type => $type, sigil => $name =~ m/\A([@%])/ ? $1 : undef };
 
     my $bare = _bare($name);
     foreach my $function ( @{ $section->{functions} } ) {

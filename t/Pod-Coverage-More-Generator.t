@@ -21,10 +21,10 @@ my $generator = Pod::Coverage::More::Generator->new( package => 'Blurbed' );
 my %pod       = map { $_->{name} => $_->{pod} } $generator->sections;
 
 subtest sections => sub {
-    is( [ map { $_->{name} } $generator->sections ], [qw{double hook make maybe yes}], "a section for each public sub with a blurb and no POD, in order" );
+    is( [ map { $_->{name} } $generator->sections ], [qw{double hook make maybe missing yes}], "a section for each public sub with a blurb and no POD, in order" );
     ok( !exists $pod{documented}, "a sub documented by hand gets none" );
     ok( !exists $pod{plain},      "nor does a sub without a blurb" );
-    is( $generator->pod, join( q{}, map { $pod{$_} } qw{double hook make maybe yes} ), "pod is the sections one after another" );
+    is( $generator->pod, join( q{}, map { $pod{$_} } qw{double hook make maybe missing yes} ), "pod is the sections one after another" );
 };
 
 subtest section => sub {
@@ -52,6 +52,8 @@ POD
     like( $pod{maybe}, qr/^Returns[ ]a[ ]Blurbed[ ]object[ ]or[ ]Undef[.]$/m,           "an object of a class, or undef" );
     like( $pod{hook},  qr/^=item[ ]record[ ]-[ ]HashRef[ ]-[ ]what[ ]to[ ]work[ ]on$/m, "a stub takes its arguments from its blurb" );
     unlike( $pod{hook}, qr/^Returns/m, "and a sub that returns nothing says nothing of it" );
+    like( $pod{missing}, qr/^=head2[ ]missing\(snapshot,[ ]paths\)$/m, "a list parameter is named without its sigil in the heading" );
+    like( $pod{missing}, qr/^=item[ ]\@paths[ ]-[ ]Str[ ]-[ ]each/m,   "and with it in its item, as \@param wrote it, so the type is of each element" );
 };
 
 subtest inherited_blurbs => sub {
@@ -68,7 +70,7 @@ subtest the_checks_pass => sub {
     my $pc     = Pod::Coverage::More->new( package => 'Blurbed', pod_from => $file );
     my $report = $pc->coverage_report;
     my @failures;
-    foreach my $name (qw{double hook make maybe yes}) {
+    foreach my $name (qw{double hook make maybe missing yes}) {
         foreach my $check ( sort keys %{ $report->{$name}{failures} } ) {
             push @failures, map { "[$check] $_" } @{ $report->{$name}{failures}{$check} };
         }

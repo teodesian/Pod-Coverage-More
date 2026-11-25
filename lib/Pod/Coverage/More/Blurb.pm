@@ -37,6 +37,10 @@ Each tag starts a line, and a line without one continues the tag above it:
 =over 4
 
 =item C<@param NAME TYPE DESCRIPTION> - an argument.  NAME may have its sigil.
+For a list parameter, such as the slurpy C<@paths> of C<sub missing ($self, $snapshot, @paths)>,
+NAME with the sigil C<@> or C<%> says that TYPE is the type of each element, or of each value of the hash:
+C<@param @paths Str each path to look for>.  Without the sigil, TYPE is the type of the parameter itself,
+and no type of a value describes a list.
 
 =item C<@returns TYPE DESCRIPTION> - the return value; C<@return> is the same tag
 
