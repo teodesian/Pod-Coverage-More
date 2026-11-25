@@ -76,6 +76,8 @@ shows nothing of its arguments, and neither does an XS sub; so the argument chec
 A sub with a signature, even an empty one, declares its arguments, and they are checked.
 A sub that a parent class documents counts as documented, as L<Pod::Coverage::CountParents> counts it,
 and the checks compare its own code with the section of the parent.
+That section documents the interface that callers use, and an override may ignore arguments that they pass,
+so an argument of the section that the override does not take is no failure of B<arguments> or B<argument_types>.
 
 =over 4
 
@@ -83,6 +85,7 @@ and the checks compare its own code with the section of the parent.
 a parameter of a signature, a key of a hash of named arguments, or a parameter that a class builder or a signature module declares.
 A parameter with no name, such as the placeholder C<$> in C<sub check ($self, $)>
 or the C<undef> in C<my ($self, undef) = @_>, takes whatever name the POD gives the argument at its position.
+A slurpy parameter with no name, as the C<@> in C<sub capture ($self, @)>, takes every argument from its position on, whatever their names.
 An argument beyond the parameters of the sub still fails.
 
 =item B<argument_types> - each argument has a documented type that agrees with the code.  A documented type must be the type that
@@ -162,7 +165,8 @@ The other methods of L<Pod::Coverage>, such as C<naked>, C<covered> and C<why_un
 =cut
 
 # The failures of each check, for each public sub that has a section in the POD:
-# a HASHREF from the name of the sub to a HASHREF with C<section>, the section that C<section_for> returns, and C<failures>,
+# a HASHREF from the name of the sub to a HASHREF with C<section>, the section that C<section_for> returns,
+# C<inherited>, true when that section is in the POD of a parent class, and C<failures>,
 # a HASHREF from the name of each check in THE CHECKS to an ARRAYREF of the messages of its failures, empty when it passes.
 # The report is made once.  Nothing when there is no POD to rate, and C<why_unrated> says why.
 # @returns HashRef  the report
@@ -175,14 +179,15 @@ sub coverage_report {
 
     my %report;
     foreach my $name ( sort $self->_get_syms( $self->{package} ) ) {
-        my $section = $self->section_for($name) or next;
-        my $rec     = $analysis->{$name}        or next;
+        my $section   = $self->section_for($name) or next;
+        my $rec       = $analysis->{$name}        or next;
+        my $inherited = $self->_documentation->section_for($name) ? 0 : 1;
         my %failures;
         foreach my $check (@CHECKS) {
             my $method = "_check_$check";
-            $failures{$check} = [ $self->$method( $name, $section, $rec ) ];
+            $failures{$check} = [ $self->$method( $name, $section, $rec, $inherited ) ];
         }
-        $report{$name} = { section => $section, failures => \%failures };
+        $report{$name} = { section => $section, inherited => $inherited, failures => \%failures };
     }
     return $self->{report} = \%report;
 }
@@ -240,7 +245,7 @@ sub _accepted_names {
 }
 
 # The arguments in ARGS, the list of the POD, that stand at the position of a parameter with no name,
-# such as a placeholder in a signature, which the POD may call anything.
+# such as a placeholder in a signature, which the POD may call anything, or at or after a slurpy one with no name.
 sub _at_unnamed_params {
     my ( $rec, @args ) = @_;
     my ( @params, %invocants );
@@ -255,7 +260,27 @@ sub _at_unnamed_params {
     foreach my $arg (@args) {
         push @listed, $arg if !$invocants{ Pod::Coverage::More::Documentation->bare_name($arg) };
     }
-    return map { $listed[$_] } grep { $_ <= $#params && !defined $params[$_]{name} } 0 .. $#listed;
+
+    # A slurpy parameter takes every argument from its position on, so an argument beyond it stands at it.
+    my @unnamed;
+    foreach my $at ( 0 .. $#listed ) {
+        my $param = $at <= $#params ? $params[$at] : $params[-1];
+        next if !$param || ( $at > $#params && !$param->{slurpy} );
+        push @unnamed, $listed[$at] if !defined $param->{name};
+    }
+    return @unnamed;
+}
+
+# The arguments in ARGS, the list of the POD, that the sub takes, by name or at the position of a parameter with no name.
+sub _taken {
+    my ( $rec, @args ) = @_;
+    my %taken   = map { $_ => 1 } _accepted_names($rec);
+    my %unnamed = map { $_ => 1 } _at_unnamed_params( $rec, @args );
+    my @taken;
+    foreach my $arg (@args) {
+        push @taken, $arg if $unnamed{$arg} || $taken{ Pod::Coverage::More::Documentation->bare_name($arg) };
+    }
+    return @taken;
 }
 
 # Whether PARAM is the object or class that a method is called on, whose keys are its fields and not named arguments.
@@ -277,8 +302,8 @@ sub _is_stub {
 }
 
 sub _check_arguments {
-    my ( $self, $name, $section, $rec ) = @_;
-    return if _is_stub($rec);
+    my ( $self, $name, $section, $rec, $inherited ) = @_;
+    return if _is_stub($rec) || $inherited;
     my $args     = $section->{args}{$name} or return;
     my @accepted = _accepted_names($rec);
     my %unnamed  = map { $_ => 1 } _at_unnamed_params( $rec, @$args );
@@ -292,9 +317,10 @@ sub _check_arguments {
 our %SIGIL_TYPES = ( '$' => 'scalar', '@' => 'array', '%' => 'hash' );
 
 sub _check_argument_types {
-    my ( $self, $name, $section, $rec ) = @_;
+    my ( $self, $name, $section, $rec, $inherited ) = @_;
     return if _is_stub($rec);
-    my $args   = $section->{args}{$name} or return;
+    my $args = $section->{args}{$name} or return;
+    $args = [ _taken( $rec, @$args ) ] if $inherited;
     my @params = grep { defined } map { $_->{name} } @{ $rec->{params} };
 
     # Strategy 1: the POD wrote each argument with its sigil, so it must match the sigil of the parameter, in any case.
@@ -539,6 +565,17 @@ sub section_for {
         return $section if $section;
     }
     return;
+}
+
+# The section that documents the sub C<name> in the POD of the package itself, not of a parent class.
+# Nothing when the POD of the package does not document it.
+# @param   name  Str  the name of the sub
+# @returns HashRef  the section
+# @example my $section = $pc->own_section_for('coverage');
+sub own_section_for {
+    my ( $self, $name ) = @_;
+    my $documentation = $self->_documentation or return;
+    return $documentation->section_for($name);
 }
 
 # The analysis of every sub of the package, as C<analyze_package> of L<Pod::Coverage::More::Analyzer> returns it.

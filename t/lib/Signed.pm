@@ -30,4 +30,8 @@ sub empty () {
     return 1;
 }
 
+sub anonymous_slurpy ( $x, @ ) {
+    return $x;
+}
+
 1;
