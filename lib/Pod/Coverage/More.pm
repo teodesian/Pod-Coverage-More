@@ -77,6 +77,8 @@ Each check applies to the public subs that have a section in the POD.
 A sub without one is the business of C<coverage>.
 The code of a stub, a sub with no signature that reads nothing of C<@_>, such as a default that subclasses override,
 shows nothing of its arguments, and neither does an XS sub; so the argument checks take their POD on the author's word.
+So do they for an abstract method, a sub that takes at most its invocant and never returns, as one that dies
+for a subclass that does not override it, directly or through a helper: its POD documents the interface that the overrides implement.
 A sub with a signature, even an empty one, declares its arguments, and they are checked.
 A sub that a parent class documents counts as documented, as L<Pod::Coverage::CountParents> counts it,
 and the checks compare its own code with the section of the parent.
@@ -306,9 +308,20 @@ sub _is_stub {
     return 1;
 }
 
+# Whether a sub is an abstract method: it takes at most its invocant and never returns, as a default that dies
+# for a subclass that does not override it.  Its POD documents the interface of the overrides.
+sub _is_abstract {
+    my ($rec) = @_;
+    return 0 if !$rec->{never_returns} || @{ $rec->{declared}{params} || [] };
+    my @params = @{ $rec->{params} };
+    return 0 if @params > 1;
+    return 1 if !@params;
+    return $params[0]{index} == 0 && ( !defined $params[0]{name} || _is_invocant( $rec, $params[0] ) ) ? 1 : 0;
+}
+
 sub _check_arguments {
     my ( $self, $name, $section, $rec, $inherited ) = @_;
-    return if _is_stub($rec) || $inherited;
+    return if _is_stub($rec) || _is_abstract($rec) || $inherited;
     my $args     = $section->{args}{$name} or return;
     my @accepted = _accepted_names($rec);
     my %unnamed  = map { $_ => 1 } _at_unnamed_params( $rec, @$args );
@@ -323,7 +336,7 @@ our %SIGIL_TYPES = ( '$' => 'scalar', '@' => 'array', '%' => 'hash' );
 
 sub _check_argument_types {
     my ( $self, $name, $section, $rec, $inherited ) = @_;
-    return if _is_stub($rec);
+    return if _is_stub($rec) || _is_abstract($rec);
     my $args = $section->{args}{$name} or return;
     $args = [ _taken( $rec, @$args ) ] if $inherited;
     my @params = grep { defined } map { $_->{name} } @{ $rec->{params} };
