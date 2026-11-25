@@ -117,6 +117,9 @@ subtest inherited_documentation => sub {
     my $hook = $pc->coverage_report->{hook};
     is( $hook->{section}{heading},                                               'hook(record)', "and the checks read the section of the parent" );
     is( [ map { @{ $hook->{failures}{$_} } } sort keys %{ $hook->{failures} } ], [],             "against the code of the override" );
+    my $templates = $pc->coverage_report->{template_files};
+    is( [ map { @{ $templates->{failures}{$_} } } sort keys %{ $templates->{failures} } ], [], "an override need not take every argument that the section of its parent documents" );
+    ok( $templates->{inherited}, "and the report says that the section is inherited" );
 };
 
 subtest trusted_by_pod => sub {
