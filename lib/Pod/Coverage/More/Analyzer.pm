@@ -620,7 +620,11 @@ sub _padname {
     return undef if !$targ;
     my $padname = $self->{cv}->PADLIST->ARRAYelt(0)->ARRAYelt($targ);
     return undef if !$padname || B::class($padname) eq 'SPECIAL';
-    return $padname->PVX;
+    my $name = $padname->PVX;
+
+    # The pad entry of a placeholder with a default, as $ = undef, is its sigil alone.
+    return undef if !defined $name || $name =~ m/\A[\$\@%&]?\z/;
+    return $name;
 }
 
 sub _padval {
