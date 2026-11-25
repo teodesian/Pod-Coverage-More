@@ -163,6 +163,33 @@ sub chosen_class {
     return bless {}, $kind;
 }
 
+# Perl leaves the empty list of a ternary out of the op tree.
+sub ternary_empty_else {
+    my ($x) = @_;
+    return $x ? lc $x : ();
+}
+
+sub ternary_empty_then {
+    my ($x) = @_;
+    return $x ? () : lc $x;
+}
+
+sub ternary_empty_fall_through {
+    my ($x) = @_;
+    $x ? () : 7;
+}
+
+sub context_empty_list {
+    return wantarray ? () : 0;
+}
+
+# $_[N] with an empty list as its default is no default that a caller can see.
+sub defaulted_empty {
+    my $x = $_[0];
+    my $y = @_ > 1 ? () : 5;
+    return [ $x, $y ];
+}
+
 # Methods that die by their contract.
 sub throws {
     Some::Exception->throw( message => 'no' );

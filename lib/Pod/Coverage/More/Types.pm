@@ -172,6 +172,9 @@ sub type_named {
     my $word = $POD_WORDS{ lc $name };
     return $word if $word;
 
+    # No type expression has a %, and the error of a failed lookup takes NAME as a printf format, which warns.
+    return if index( $name, q{%} ) >= 0;
+
     my $registry = Type::Registry->for_class(__PACKAGE__);
     $registry->add_types('Types::Standard') if !$registry->simple_lookup('Str');
     my $type = eval { $registry->lookup($name) };

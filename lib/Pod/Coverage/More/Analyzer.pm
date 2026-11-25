@@ -443,8 +443,12 @@ sub _last_values {
         return $self->classify($op);
     }
     if ( $name eq 'cond_expr' ) {
-        my ( undef, $then, $else ) = _kids($op);
-        return ( $self->_last_values($then), $self->_last_values($else) );
+        my $line = $self->{line_of}{$$op};
+        my @values;
+        foreach my $branch ( ( _branches($op) )[ 1, 2 ] ) {
+            push @values, $branch ? $self->_last_values($branch) : { type => 'empty', line => $line };
+        }
+        return @values;
     }
     if ( $name eq 'and' || $name eq 'or' || $name eq 'dor' ) {
 
@@ -469,6 +473,7 @@ sub _last_values {
 # @example my @evidence = $self->classify($op);
 sub classify {
     my ( $self, $op ) = @_;
+    return { type => 'empty' } if !$op;
     $op = _unwrap($op);
     my $name = $op->name;
 
@@ -500,7 +505,7 @@ sub classify {
         return $self->classify($value);
     }
     if ( $name eq 'cond_expr' ) {
-        my ( $cond, $then, $else ) = _kids($op);
+        my ( $cond, $then, $else ) = _branches($op);
 
         # wantarray ? LIST : SCALAR says which value goes with which context.
         if ( _unwrap($cond)->name eq 'wantarray' ) {
@@ -548,6 +553,27 @@ sub _kids {
         last unless $kid->moresib;
     }
     return @kids;
+}
+
+# The condition and the two branches of COND ? THEN : ELSE.  Perl leaves a branch that is an empty list out of the
+# op tree, so a missing branch comes back as undef: the one left is THEN when the jump of the op lands in it.
+sub _branches {
+    my ($op) = @_;
+    my ( $cond, @branches ) = _kids($op);
+    return ( $cond, @branches ) if @branches != 1;
+    return ( $cond, $branches[0], undef ) if _holds( $branches[0], $op->other );
+    return ( $cond, undef, $branches[0] );
+}
+
+# Whether TARGET is OP or an op under it.
+sub _holds {
+    my ( $op, $target ) = @_;
+    my @ops = ($op);
+    while ( my $next = shift @ops ) {
+        return 1 if $$next == $$target;
+        push @ops, _kids($next);
+    }
+    return 0;
 }
 
 # Kids that do something, as opposed to list markers and optimized-away ops.
@@ -735,9 +761,9 @@ sub _defaulted_elem {
     my ( $self, $op ) = @_;
     my $name = $op->name;
     if ( $name eq 'cond_expr' ) {
-        my ( undef, $then, $else ) = _kids($op);
-        $then = _unwrap($then);
-        return ( $then, $else, q{=} ) if $then->name eq 'aelemfast' && $self->_is_args_elem($then);
+        my ( undef, $then, $else ) = _branches($op);
+        $then = _unwrap($then) if $then;
+        return ( $then, $else, q{=} ) if $then && $then->name eq 'aelemfast' && $self->_is_args_elem($then);
     }
     if ( $name eq 'dor' || $name eq 'or' ) {
         my ( $left, $right ) = _kids($op);

@@ -100,13 +100,14 @@ subtest constants => sub {
 };
 
 subtest positional_parameters => sub {
-    is( params_of( $subs->{shifted} ),      [ '$self#0:shift', '$name#1:shift' ],                                                          "each shift takes the next index" );
-    is( params_of( $subs->{listed} ),       [ '$self#0:list', '$first#1:list', '@rest#2:list' ],                                           "a list assignment from \@_ ends with its slurpy array" );         ## no critic (RequireQwForLiteralLists) qw warns about the # in each
-    is( params_of( $subs->{elements} ),     [ '?#0:element', '?#1:element' ],                                                              "\$_[N] used directly gives unnamed parameters" );
-    is( params_of( $subs->{defaulted} ),    [ q{$x#0:element}, q{$y#1:element optional default =}, q{$z#2:element optional default //=} ], "\$_[N] with a default is an optional parameter" );
-    is( params_of( $subs->{shift_method} ), ['?#0:shift'],                                                                                 "shift->method gives an unnamed parameter" );
-    is( params_of( $subs->{anon_inside} ),  ['$x#0:shift'],                                                                                "the shift inside a nested anonymous sub belongs to that sub" );
-    is( params_of( $subs->{generated} ),    ['$q#0:list'],                                                                                 "a closure assigned to a glob has its parameters read" );
+    is( params_of( $subs->{shifted} ),         [ '$self#0:shift', '$name#1:shift' ],                                                          "each shift takes the next index" );
+    is( params_of( $subs->{listed} ),          [ '$self#0:list', '$first#1:list', '@rest#2:list' ],                                           "a list assignment from \@_ ends with its slurpy array" );         ## no critic (RequireQwForLiteralLists) qw warns about the # in each
+    is( params_of( $subs->{elements} ),        [ '?#0:element', '?#1:element' ],                                                              "\$_[N] used directly gives unnamed parameters" );
+    is( params_of( $subs->{defaulted_empty} ), [q{$x#0:element}],                                                                             "a ternary on \@_ with an empty list is no default" );
+    is( params_of( $subs->{defaulted} ),       [ q{$x#0:element}, q{$y#1:element optional default =}, q{$z#2:element optional default //=} ], "\$_[N] with a default is an optional parameter" );
+    is( params_of( $subs->{shift_method} ),    ['?#0:shift'],                                                                                 "shift->method gives an unnamed parameter" );
+    is( params_of( $subs->{anon_inside} ),     ['$x#0:shift'],                                                                                "the shift inside a nested anonymous sub belongs to that sub" );
+    is( params_of( $subs->{generated} ),       ['$q#0:list'],                                                                                 "a closure assigned to a glob has its parameters read" );
     ok( $subs->{generated}{generated}, "a closure assigned to a glob is marked generated" );
     ok( !$subs->{shifted}{generated},  "a named sub is not marked generated" );
     is( params_of( $subs->{evaled} ), [ '$self#0:list', '$value#1:list' ], "a sub built by string eval has its parameters read" );
@@ -129,14 +130,18 @@ subtest usage => sub {
 };
 
 subtest returns => sub {
-    is( returns_of( $subs->{shifted} ),       ['variable name=$name'],                 "a returned variable is named" );
-    is( returns_of( $subs->{listed} ),        ['number'],                              "scalar(\@array) returns a number" );
-    is( returns_of( $subs->{bare_return} ),   ['empty'],                               "return with no value" );
-    is( returns_of( $subs->{listy} ),         ['list count=3'],                        "a list of three values" );
-    is( returns_of( $subs->{branches} ),      [ 'number value=1', 'string value=no' ], "one value per return in an if/else" );
-    is( returns_of( $subs->{ternary} ),       [ 'arrayref', 'undef' ],                 "both branches of a ternary, one an empty []" );
-    is( returns_of( $subs->{empty_hashref} ), ['hashref'],                             "an empty {} is a hashref" );
-    is( returns_of( $subs->{fall_through} ),  [ 'string value=yes', 'hashref' ],       "the last statement of each branch when there is no return" );
+    is( returns_of( $subs->{shifted} ),                    ['variable name=$name'], "a returned variable is named" );
+    is( returns_of( $subs->{listed} ),                     ['number'],              "scalar(\@array) returns a number" );
+    is( returns_of( $subs->{bare_return} ),                ['empty'],               "return with no value" );
+    is( returns_of( $subs->{listy} ),                      ['list count=3'],        "a list of three values" );
+    is( returns_of( $subs->{branches} ),                   [ 'number value=1',     'string value=no' ],               "one value per return in an if/else" );
+    is( returns_of( $subs->{ternary} ),                    [ 'arrayref',           'undef' ],                         "both branches of a ternary, one an empty []" );
+    is( returns_of( $subs->{ternary_empty_else} ),         [ 'string',             'empty' ],                         "a ternary whose second branch is an empty list" );
+    is( returns_of( $subs->{ternary_empty_then} ),         [ 'empty',              'string' ],                        "a ternary whose first branch is an empty list" );
+    is( returns_of( $subs->{ternary_empty_fall_through} ), [ 'empty',              'number value=7' ],                "a ternary with an empty list as the last statement" );
+    is( returns_of( $subs->{context_empty_list} ),         [ 'empty context=list', 'number value=0 context=scalar' ], "wantarray with an empty list for list context" );
+    is( returns_of( $subs->{empty_hashref} ),              ['hashref'],                       "an empty {} is a hashref" );
+    is( returns_of( $subs->{fall_through} ),               [ 'string value=yes', 'hashref' ], "the last statement of each branch when there is no return" );
     ok( ( grep { $_->{implicit} } @{ $subs->{fall_through}{returns} } ) == 2, "values from falling off the end are marked implicit" );
     is( returns_of( $subs->{context} ),     [ 'number value=1 context=list', 'number value=0 context=scalar' ], "wantarray says which value goes with which context" );
     is( returns_of( $subs->{calls} ),       ['call function=Analyzed::listed'],                                 "a returned call names the function" );
