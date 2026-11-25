@@ -1,5 +1,8 @@
 Revision history for Pod-Coverage-More
 
+0.005 2026-11-25 TEODESIAN
+    - A placeholder with a default in a signature, such as $ = undef, has no name, so the POD may call it anything
+
 0.004 2026-11-25 TEODESIAN
     - Accept any names in the POD for the arguments that an anonymous slurpy parameter of a signature takes
     - Accept any name in the POD for an undef placeholder in a list assignment from @_, at its position

@@ -4,7 +4,7 @@ Pod::Coverage::More - Make sure your POD covers more ground than just subroutine
 
 # VERSION
 
-version 0.004
+version 0.005
 
 # SYNOPSIS
 
