@@ -545,6 +545,27 @@ sub anonymous_slurpy_misnamed ( $self, $count, @ ) {
     return;
 }
 
+=head2 undef_placeholder(elem, doc)
+
+=over 4
+
+=item elem - Str - what it returns
+
+=item doc - HashRef - ignored, as the list assignment puts it in undef
+
+=back
+
+Returns Str, the element.
+
+    my $elem = $object->undef_placeholder( 'a', {} );
+
+=cut
+
+sub undef_placeholder {
+    my ( $self, $elem, undef ) = @_;
+    return "$elem";
+}
+
 my sub unanswered ( $class, $what ) {
     die "$class does not answer $what\n";
 }

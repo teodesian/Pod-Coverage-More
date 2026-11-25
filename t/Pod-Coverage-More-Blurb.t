@@ -72,6 +72,12 @@ subtest example_indentation => sub {
     is( $blurbs->{continued}{examples}, [ [ 'my $widget = make(', '    size => 3,', ');' ] ], "and lines without the tag keep theirs" );
 };
 
+subtest returns_text => sub {
+    my $blurbs = blurbs_of( '# @returns 443 when nothing else is set', 'sub port {', '}', '# @returns 0 on success', 'sub status {', '}' );
+    is( [ map { name_of( $blurbs->{$_}{returns}{type} ) } qw{port status} ], [qw{- -}],                      "a number at the start of a \@returns names no type" );
+    is( $blurbs->{port}{returns}{description},                               '443 when nothing else is set', "and starts its text" );
+};
+
 subtest where_a_blurb_is => sub {
     my $blurbs = blurbs_of(
         '# Not a blurb: a blank line follows.',

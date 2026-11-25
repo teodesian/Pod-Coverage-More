@@ -85,7 +85,8 @@ so an argument of the section that the override does not take is no failure of B
 
 =item B<arguments> - each argument that the POD names is a parameter of the sub: a variable assigned from C<@_>,
 a parameter of a signature, a key of a hash of named arguments, or a parameter that a class builder or a signature module declares.
-A parameter with no name, such as the placeholder C<$> in C<sub check ($self, $)>, takes whatever name the POD gives the argument at its position.
+A parameter with no name, such as the placeholder C<$> in C<sub check ($self, $)>
+or the C<undef> in C<my ($self, undef) = @_>, takes whatever name the POD gives the argument at its position.
 A slurpy parameter with no name, as the C<@> in C<sub capture ($self, @)>, takes every argument from its position on, whatever their names.
 An argument beyond the parameters of the sub still fails.
 
