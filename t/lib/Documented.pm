@@ -486,4 +486,32 @@ sub records_as_hash ($names) {
     return [ map { { name => $_ } } @$names ];
 }
 
+=head2 $kept = $object->named_in_heading($domain, leave_down => $bool)
+
+Returns Bool.
+
+    my $kept = $object->named_in_heading( 'web.test.test', leave_down => 1 );
+
+=cut
+
+sub named_in_heading {
+    my ( $self, $domain, %opts ) = @_;
+    $self->{domain} = $domain;
+    return $opts{leave_down} ? 1 : 0;
+}
+
+=head2 $kept = $object->wrongly_named_in_heading($domain, stay_down => $bool)
+
+Returns Bool.
+
+    my $kept = $object->wrongly_named_in_heading( 'web.test.test', stay_down => 1 );
+
+=cut
+
+sub wrongly_named_in_heading {
+    my ( $self, $domain, %opts ) = @_;
+    $self->{domain} = $domain;
+    return $opts{leave_down} ? 1 : 0;
+}
+
 1;

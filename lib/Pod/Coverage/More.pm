@@ -228,14 +228,24 @@ sub _accepted_names {
     my ($rec) = @_;
     my @names;
     foreach my $param ( @{ $rec->{params} } ) {
-        push @names, $param->{name}            if defined $param->{name};
-        push @names, @{ $param->{keys} || [] } if !_is_invocant( $rec, $param );
+        push @names, $param->{name} if defined $param->{name};
     }
+    push @names, _named_keys($rec);
     foreach my $param ( @{ $rec->{declared}{params} || [] } ) {
         push @names, $param->{name}  if defined $param->{name};
         push @names, $param->{named} if defined $param->{named};
     }
     return _bare_names(@names);
+}
+
+# The keys of the hashes of named arguments of a sub.
+sub _named_keys {
+    my ($rec) = @_;
+    my @keys;
+    foreach my $param ( @{ $rec->{params} } ) {
+        push @keys, @{ $param->{keys} || [] } if !_is_invocant( $rec, $param );
+    }
+    return @keys;
 }
 
 # The arguments in ARGS, the list of the POD, that stand at the position of a parameter with no name,
@@ -297,10 +307,12 @@ sub _check_argument_types {
     my @params = grep { defined } map { $_->{name} } @{ $rec->{params} };
 
     # Strategy 1: the POD wrote each argument with its sigil, so it must match the sigil of the parameter, in any case.
+    # A key of the named arguments, as the heading writes it in key => value, has no sigil to match.
     if ( any { m/\A[\$*\\@%&|]/ } @$args ) {
         my %unnamed = map { $_ => 1 } _at_unnamed_params( $rec, @$args );
+        my %keys    = map { $_ => 1 } _named_keys($rec);
         my @failures;
-        foreach my $arg ( map { s/\A\\[\$*@%&|]/\$/r } grep { !$unnamed{$_} } @$args ) {
+        foreach my $arg ( map { s/\A\\[\$*@%&|]/\$/r } grep { !$unnamed{$_} && !$keys{$_} } @$args ) {
             push @failures, "Var Type Mismatch for function $name: $arg not in @params" if none { lc($_) eq lc($arg) } @params;
         }
         return @failures;

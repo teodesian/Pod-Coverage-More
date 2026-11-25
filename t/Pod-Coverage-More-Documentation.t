@@ -44,6 +44,12 @@ subtest headings => sub {
     is( [ $doc->identifiers ],                             [qw{fun1 fun2 formatted qualified method_call spaced spaced2 spaced3 woven}],                             "the identifiers are every sub that a heading names" );
 };
 
+subtest named_argument_headings => sub {
+    my $doc = read_pod( undef, '=head2 account_for($domain, \%conf, above => $bool)', '=head2 put($file, ref => $ref, overwrite => 1)' );
+    is( $doc->section_for('account_for')->{args}{account_for}, [ '$domain', '\%conf', 'above' ], "a key => value pair in a heading names the argument by its key" );
+    is( $doc->section_for('put')->{args}{put}, [ q{$file}, qw{ref overwrite} ], "whatever its value" );
+};
+
 subtest sections => sub {
     my $doc = read_pod( [qw{first second}], '=head2 first', '=head3 Caveats', 'Returns Int.', '=head2 Return values', 'Returns Str.', '=head2 second', 'Returns Num.' );
     is( returns_of( $doc->section_for('first') ),                      ['Int'],            "a deeper heading that names no sub stays part of the section" );

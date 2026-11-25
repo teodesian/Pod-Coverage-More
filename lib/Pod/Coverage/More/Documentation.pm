@@ -25,9 +25,11 @@ use Pod::Coverage::More::Types qw{type_named};
 
 Reads the POD of a module into one section per heading that documents subs.
 A heading documents subs when it is a C<=head2>, C<=head3> or C<=head4>, or a C<=method>, C<=func> or C<=attr> of L<Pod::Weaver>.
-It names one or more subs, each with an optional argument list in parentheses:
+It names one or more subs, each with an optional argument list in parentheses.
+A C<< key => value >> pair in an argument list names the argument C<key>, a key of a hash of named arguments:
 
     =head2 fun1(arg0, arg1), fun2(arg2)
+    =head2 snapshot($domain, leave_down => $bool)
     =head2 wsSep wsSep2(whee, zap)
     =head2 $obj->some_method(arr)
     =method Some::Module::fully_qualified($x)
@@ -214,7 +216,7 @@ sub _heading {
     my %args;
     while ( $text =~ m/(\w+)\s*$ARGLIST/g ) {
         my ( $function, $list ) = ( $1, $2 );
-        $args{$function} = [ grep { $_ ne q{} } map { s/\A\s+|\s+\z//gr } split m/,/, $list ];
+        $args{$function} = [ grep { $_ ne q{} } map { s/\A\s+|\s+\z//gr =~ s/\A(\w+)\s*=>.*\z/$1/r } split m/,/, $list ];
     }
     ( my $names = $text ) =~ s/\([^()]*\)//g;
     my @functions = index( $names, q{,} ) >= 0 ? split( m/\s*,\s*/, $names ) : split( m/\s+/, $names );
