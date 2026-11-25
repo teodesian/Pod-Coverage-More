@@ -566,6 +566,91 @@ sub undef_placeholder {
     return "$elem";
 }
 
+my sub unanswered ( $class, $what ) {
+    die "$class does not answer $what\n";
+}
+
+=head2 $class->abstract_merge(@sources)
+
+The interface that subclasses implement.
+
+=over 4
+
+=item @sources - HashRef - each source
+
+=back
+
+Returns a list of HashRef.
+
+    my @merged = $class->abstract_merge( {} );
+
+=cut
+
+sub abstract_merge {
+    my ($class) = @_;
+    return unanswered( $class, 'abstract_merge' );
+}
+
+=head2 $class->abstract_ports(%opts)
+
+The interface that subclasses implement.
+
+=over 4
+
+=item %opts - Int - each option
+
+=back
+
+Returns a list of Int.  Dies in this class, which does not answer it.
+
+    my @ports = $class->abstract_ports( tls_port => 443 );
+
+=cut
+
+sub abstract_ports {
+    my ($self) = @_;
+    die ref($self) || $self, " does not answer abstract_ports\n";
+}
+
+=head2 $object->invocant_only(%opts)
+
+=over 4
+
+=item %opts - Str - which it does not take
+
+=back
+
+Returns Str.
+
+    my $colour = $object->invocant_only( shade => 'dark' );
+
+=cut
+
+sub invocant_only {
+    my ($self) = @_;
+    return "$self->{colour}";
+}
+
+=head2 $class->abstract_shifted(@questions)
+
+The interface that subclasses implement.
+
+=over 4
+
+=item @questions - Str - each question
+
+=back
+
+Returns a list of Str.
+
+    my @answers = $class->abstract_shifted('why');
+
+=cut
+
+sub abstract_shifted {
+    return unanswered( shift, 'abstract_shifted' );
+}
+
 =head2 $sum = Documented->assigned_heading($x, $y)
 
 Returns Int.
