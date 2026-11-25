@@ -34,4 +34,8 @@ sub anonymous_slurpy ( $x, @ ) {
     return $x;
 }
 
+sub defaulted_placeholder ( $x, $ = undef ) {
+    return $x;
+}
+
 1;

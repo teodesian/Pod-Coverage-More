@@ -199,7 +199,8 @@ subtest signatures => sub {
     is( params_of( $signed->{placeholder} ),      [ '?#0:signature',  '$y#1:signature' ],         "a placeholder parameter has no name" );
     is( params_of( $signed->{anonymous_slurpy} ), [ '$x#0:signature', '?#1:signature optional' ], "a slurpy parameter with no name has none" );
     ok( $signed->{anonymous_slurpy}{params}[1]{slurpy}, "and is marked slurpy" );
-    is( params_of( $signed->{empty} ), [], "an empty signature has no parameters" );
+    is( [ map { [ @{$_}{qw{name index optional}} ] } @{ $signed->{defaulted_placeholder}{params} } ], [ [ '$x', 0, 0 ], [ undef, 1, 1 ] ], "a placeholder with a default has no name either, and is optional" );
+    is( params_of( $signed->{empty} ),                                                                [],                                  "an empty signature has no parameters" );
 };
 
 subtest signature_defaults_5_38 => sub {
