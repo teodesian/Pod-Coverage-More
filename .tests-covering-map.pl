@@ -65,5 +65,8 @@ return sub {
     return q{} if $path =~ m{[.]md\z}sx;
     return q{} if $path =~ m{[.]pod\z}sx && $path !~ m{\Alib/}sx;
 
+    # The fixture scripts, which the weaver loads in a child perl and t/Pod-Coverage-More.t by their path.
+    return ( 't/Pod-Weaver-Section-Blurbs.t', 't/Pod-Coverage-More.t' ) if $path =~ m{\At/script/}sx;
+
     return;
 };

@@ -8,7 +8,7 @@ use warnings FATAL => q{all};
 use re q{/xsaa};
 
 use List::Util      qw{any none};
-use Module::Runtime qw{require_module};
+use Module::Runtime qw{module_notional_filename require_module};
 use mro;
 use Package::Stash;
 use Pod::Find       qw(pod_where);
@@ -441,7 +441,7 @@ sub _documentation {
 
     my $package = $self->{package};
     print "getting pod location for '$package'\n" if $TRACE_ALL;
-    $self->{pod_from} ||= pod_where( { -inc => 1 }, $package );
+    $self->{pod_from} ||= pod_where( { -inc => 1 }, $package ) // $INC{ module_notional_filename($package) };
     my $pod_from = $self->{pod_from};
     unless ($pod_from) {
         $self->{why_unrated} = "couldn't find pod";
