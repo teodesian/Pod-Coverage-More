@@ -194,8 +194,10 @@ subtest signatures => sub {
     is( params_of( $signed->{slurpy_array} ),           [ '$x#0:signature', '@rest#1:signature optional' ],           "a slurpy array" );
     is( params_of( $signed->{slurpy_hash} ),            [ '$x#0:signature', '%opts#1:signature optional keys size' ], "a slurpy hash and the keys read from it" );
     ok( $signed->{slurpy_hash}{params}[1]{slurpy}, "a slurpy hash is marked slurpy" );
-    is( params_of( $signed->{placeholder} ), [ '?#0:signature', '$y#1:signature' ], "a placeholder parameter has no name" );
-    is( params_of( $signed->{empty} ),       [],                                    "an empty signature has no parameters" );
+    is( params_of( $signed->{placeholder} ),      [ '?#0:signature',  '$y#1:signature' ],         "a placeholder parameter has no name" );
+    is( params_of( $signed->{anonymous_slurpy} ), [ '$x#0:signature', '?#1:signature optional' ], "a slurpy parameter with no name has none" );
+    ok( $signed->{anonymous_slurpy}{params}[1]{slurpy}, "and is marked slurpy" );
+    is( params_of( $signed->{empty} ), [], "an empty signature has no parameters" );
 };
 
 subtest signature_defaults_5_38 => sub {

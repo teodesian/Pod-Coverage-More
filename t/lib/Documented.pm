@@ -486,11 +486,70 @@ sub records_as_hash ($names) {
     return [ map { { name => $_ } } @$names ];
 }
 
+=head2 anonymous_slurpy(wait, seconds)
+
+=over 4
+
+=item wait - Int - ignored, as the signature takes it in a slurpy with no name
+
+=item seconds - Int - ignored too
+
+=back
+
+    $object->anonymous_slurpy( 1, 2 );
+
+=cut
+
+sub anonymous_slurpy ( $self, @ ) {
+    $self->{called} = 1;
+    return;
+}
+
+=head2 named_before_anonymous_slurpy(count, colour, size)
+
+=over 4
+
+=item count - Int - how many
+
+=item colour - Str - ignored, as the signature takes it in a slurpy with no name
+
+=item size - Int - ignored too
+
+=back
+
+    $object->named_before_anonymous_slurpy( 1, colour => 'red', size => 2 );
+
+=cut
+
+sub named_before_anonymous_slurpy ( $self, $count, % ) {
+    $self->{count} = $count;
+    return;
+}
+
+=head2 anonymous_slurpy_misnamed(total, options)
+
+=over 4
+
+=item total - Int - which is no parameter
+
+=item options - HashRef - ignored
+
+=back
+
+    $object->anonymous_slurpy_misnamed( 1, {} );
+
+=cut
+
+sub anonymous_slurpy_misnamed ( $self, $count, @ ) {
+    $self->{count} = $count;
+    return;
+}
+
 my sub unanswered ( $class, $what ) {
     die "$class does not answer $what\n";
 }
 
-=head2 @merged = $class->abstract_merge(@sources)
+=head2 $class->abstract_merge(@sources)
 
 The interface that subclasses implement.
 
@@ -511,7 +570,7 @@ sub abstract_merge {
     return unanswered( $class, 'abstract_merge' );
 }
 
-=head2 @ports = $class->abstract_ports(%opts)
+=head2 $class->abstract_ports(%opts)
 
 The interface that subclasses implement.
 
@@ -532,7 +591,7 @@ sub abstract_ports {
     die ref($self) || $self, " does not answer abstract_ports\n";
 }
 
-=head2 $colour = $object->invocant_only(%opts)
+=head2 $object->invocant_only(%opts)
 
 =over 4
 
@@ -551,7 +610,7 @@ sub invocant_only {
     return "$self->{colour}";
 }
 
-=head2 @answers = $class->abstract_shifted(@questions)
+=head2 $class->abstract_shifted(@questions)
 
 The interface that subclasses implement.
 
