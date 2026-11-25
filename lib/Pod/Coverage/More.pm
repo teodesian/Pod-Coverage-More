@@ -88,6 +88,8 @@ An argument beyond the parameters of the sub still fails.
 the code declares or a narrower one, so that the POD never promises that the sub takes what it refuses.
 A type that the code only implies by its use of the argument fails only when it contradicts the documented one,
 as a hash reference where the code uses an array reference.
+The type of a list parameter, such as C<@paths>, is C<ARRAY> or C<HASH>, or else an item that keeps the sigil,
+as C<=item @paths - Str>, gives the type of each element.
 
 =item B<returns> - a sub that returns a value says so with a C<Returns> paragraph or an C<=item Returns>,
 and the documented types cover every type that the code returns or declares.
@@ -323,6 +325,12 @@ sub _type_failures {
     my $word = $documented->{word};
     return "No type declared for arg $arg_name of $name" if $word eq q{};
     return                                               if $word eq 'mixed';
+
+    # An item with the sigil of a list documents the type of each element, which the code shows nothing of.
+    if ( my $elements = $documented->{sigil} ) {
+        return if defined $sigil_type && $SIGIL_TYPES{$elements} eq $sigil_type;
+        return "Type mismatch for arg $arg_name of $name: documented the elements of $elements$arg_name, expected " . ( $sigil_type // 'a parameter with a sigil' );
+    }
 
     # A word for a container names the kind of the parameter itself, and only a container parameter is one.
     if ( defined $sigil_type && $word ne $sigil_type && ( $word eq 'array' || $word eq 'hash' || $sigil_type ne 'scalar' ) ) {

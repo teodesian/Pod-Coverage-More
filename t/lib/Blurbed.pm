@@ -64,6 +64,15 @@ sub maybe {
     return $x ? bless( {}, 'Blurbed' ) : undef;
 }
 
+# The paths that a snapshot does not have.
+# @param   snapshot  HashRef  what to look in
+# @param   @paths    Str  each path to look for
+# @returns the paths, as a list
+# @example my @missing = Blurbed::missing( {}, 'a', 'b' );
+sub missing ( $snapshot, @paths ) {
+    return grep { !$snapshot->{$_} } @paths;
+}
+
 sub plain {
     return 2;
 }

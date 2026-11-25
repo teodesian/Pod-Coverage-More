@@ -74,6 +74,13 @@ subtest items => sub {
     ok( !$types->{plain}{type}, "a description is no type" );
 };
 
+subtest list_items => sub {
+    my $doc   = read_pod( undef, '=head2 listed(paths, opts, one)', '=over 4', '=item @paths - Str - each path', '=item %opts - Int', '=item one - Str', '=back' );
+    my $types = $doc->section_for('listed')->{types}{listed};
+    is( { map { $_ => $types->{$_}{sigil} } keys %$types }, { paths => '@', opts => '%', one => undef }, "an item with the sigil of a list records the sigil, for the type of each element" );
+    is( $types->{paths}{word},                              'str',                                       "and the type is the type of the elements" );
+};
+
 subtest returns => sub {
     my %expected = (
         'Returns nothing.'                          => ['nothing'],
