@@ -45,6 +45,8 @@ Returns a Blurbed object.
 
 Dies when the size is negative.
 
+Dies with a Blurbed::Exception when the size is over 1000.
+
     my $widget = Blurbed->make( size => 3, colour => 'red' );
 
 POD
