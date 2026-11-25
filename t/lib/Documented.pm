@@ -357,4 +357,59 @@ sub placeholder_extra ( $self, $ ) {
     return;
 }
 
+=head2 relay_function(thing)
+
+=over 4
+
+=item thing - Str - what to pass on
+
+=back
+
+Returns nothing, as stub does.
+
+    Documented::relay_function('a');
+
+=cut
+
+sub relay_function ($thing) {
+    return stub($thing);
+}
+
+=head2 relay_method(thing)
+
+=over 4
+
+=item thing - Str - what to pass on
+
+=back
+
+Returns nothing, as the method stub does.
+
+    $object->relay_method('a');
+
+=cut
+
+sub relay_method ( $self, $thing ) {
+    return $self->stub($thing);
+}
+
+=head2 relay_or_variable(thing)
+
+=over 4
+
+=item thing - Str - what to pass on, or return
+
+=back
+
+Returns nothing.
+
+    Documented::relay_or_variable('a');
+
+=cut
+
+sub relay_or_variable ($thing) {
+    return stub($thing) if !defined $thing;
+    return $thing;
+}
+
 1;
