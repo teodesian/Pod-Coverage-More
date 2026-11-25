@@ -64,6 +64,10 @@ and an C<=item> per argument gives its type.  L<Pod::Coverage::More::Documentati
         my $smaller = $image->resize( 100, 50 );
 
 For several functions on one line, separate them with commas or spaces; for arguments, use commas.
+A heading of prose, such as C<=head2 The token cache>, names no sub, even when one of its words is the name of one.
+A heading can call the sub on an object or a class, as C<< =head2 $image->resize($width, $height) >>,
+but a heading that assigns the call, as C<< =head2 $smaller = $image->resize($width, $height) >>, is an example,
+which belongs in a verbatim block of the section, and fails B<examples>.
 An argument list can give the sigils of the arguments, as C<($foo, @bar, \%baz)>.
 Then the sigils are compared with those of the parameters, and no C<=item> is needed.
 
@@ -108,7 +112,8 @@ makes the result an object of that class, as L<Math::GMP> does; so such a type f
 
 =item B<termination> - a sub that can die, croak, confess, throw or exit, outside an C<eval> or C<try>, says so
 
-=item B<examples> - the section has a verbatim paragraph that calls the sub, by C<name(> or C<< ->name >>
+=item B<examples> - the section has a verbatim paragraph that calls the sub, by C<name(> or C<< ->name >>,
+and its heading does not assign the call to a variable, which makes the heading an example
 
 =back
 
@@ -236,14 +241,24 @@ sub _accepted_names {
     my ($rec) = @_;
     my @names;
     foreach my $param ( @{ $rec->{params} } ) {
-        push @names, $param->{name}            if defined $param->{name};
-        push @names, @{ $param->{keys} || [] } if !_is_invocant( $rec, $param );
+        push @names, $param->{name} if defined $param->{name};
     }
+    push @names, _named_keys($rec);
     foreach my $param ( @{ $rec->{declared}{params} || [] } ) {
         push @names, $param->{name}  if defined $param->{name};
         push @names, $param->{named} if defined $param->{named};
     }
     return _bare_names(@names);
+}
+
+# The keys of the hashes of named arguments of a sub.
+sub _named_keys {
+    my ($rec) = @_;
+    my @keys;
+    foreach my $param ( @{ $rec->{params} } ) {
+        push @keys, @{ $param->{keys} || [] } if !_is_invocant( $rec, $param );
+    }
+    return @keys;
 }
 
 # The arguments in ARGS, the list of the POD, that stand at the position of a parameter with no name,
@@ -337,10 +352,12 @@ sub _check_argument_types {
     my @params = grep { defined } map { $_->{name} } @{ $rec->{params} };
 
     # Strategy 1: the POD wrote each argument with its sigil, so it must match the sigil of the parameter, in any case.
+    # A key of the named arguments, as the heading writes it in key => value, has no sigil to match.
     if ( any { m/\A[\$*\\@%&|]/ } @$args ) {
         my %unnamed = map { $_ => 1 } _at_unnamed_params( $rec, @$args );
+        my %keys    = map { $_ => 1 } _named_keys($rec);
         my @failures;
-        foreach my $arg ( map { s/\A\\[\$*@%&|]/\$/r } grep { !$unnamed{$_} } @$args ) {
+        foreach my $arg ( map { s/\A\\[\$*@%&|]/\$/r } grep { !$unnamed{$_} && !$keys{$_} } @$args ) {
             push @failures, "Var Type Mismatch for function $name: $arg not in @params" if none { lc($_) eq lc($arg) } @params;
         }
         return @failures;
@@ -513,8 +530,14 @@ sub _check_termination {
 
 sub _check_examples {
     my ( $self, $name, $section ) = @_;
-    return if any { m/\b\Q$name\E\s*\(|->\s*\Q$name\E\b/ } @{ $section->{verbatim} };
-    return "No example of $name in its POD";
+    my @failures;
+    if ( $section->{assigns} ) {
+        my $args = $section->{args}{$name};
+        my $head = $name . ( $args ? '(' . join( ', ', @$args ) . ')' : q{} );
+        push @failures, "The heading of $name is an example: move `$section->{heading}` into a verbatim block, and head the section $head";
+    }
+    push @failures, "No example of $name in its POD" if none { m/\b\Q$name\E\s*\(|->\s*\Q$name\E\b/ } @{ $section->{verbatim} };
+    return @failures;
 }
 
 sub _trace_dump {

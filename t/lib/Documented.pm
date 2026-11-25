@@ -651,4 +651,70 @@ sub abstract_shifted {
     return unanswered( shift, 'abstract_shifted' );
 }
 
+=head2 $sum = Documented->assigned_heading($x, $y)
+
+Returns Int.
+
+    my $sum = Documented->assigned_heading( 1, 2 );
+
+=cut
+
+sub assigned_heading {
+    my ( $class, $x, $y ) = @_;
+    return int( $x + $y );
+}
+
+=head2 @pairs = Documented->assigned_heading_alone(%opts)
+
+Returns nothing.
+
+=cut
+
+sub assigned_heading_alone {
+    my ( $class, %opts ) = @_;
+    $opts{seen} = 1;
+    return;
+}
+
+=head2 Documented->called_heading($x)
+
+Returns Int.
+
+    my $int = Documented->called_heading(2.5);
+
+=cut
+
+sub called_heading {
+    my ( $class, $x ) = @_;
+    return int($x);
+}
+
+=head2 $object->named_in_heading($domain, leave_down => $bool)
+
+Returns Bool.
+
+    my $kept = $object->named_in_heading( 'web.test.test', leave_down => 1 );
+
+=cut
+
+sub named_in_heading {
+    my ( $self, $domain, %opts ) = @_;
+    $self->{domain} = $domain;
+    return $opts{leave_down} ? 1 : 0;
+}
+
+=head2 $object->wrongly_named_in_heading($domain, stay_down => $bool)
+
+Returns Bool.
+
+    my $kept = $object->wrongly_named_in_heading( 'web.test.test', stay_down => 1 );
+
+=cut
+
+sub wrongly_named_in_heading {
+    my ( $self, $domain, %opts ) = @_;
+    $self->{domain} = $domain;
+    return $opts{leave_down} ? 1 : 0;
+}
+
 1;
