@@ -792,6 +792,7 @@ sub _on_sassign {
 }
 
 # A list assignment to lexicals, from @_ or from one shift of it.
+# An undef among the lexicals is a parameter with no name, at its position.
 sub _on_aassign {
     my ( $self, $op )  = @_;
     my ( $rhs,  $lhs ) = _kids($op);
@@ -800,14 +801,14 @@ sub _on_aassign {
     my @values = _significant_kids($rhs);
     my @targets;
     foreach my $kid ( _significant_kids($lhs) ) {
-        push @targets, $kid if $kid->name =~ m/\Apad[ash]v\z/;
+        push @targets, $kid if $kid->name =~ m/\A(?:pad[ash]v|undef)\z/;
     }
     return if @values != 1 || !@targets;
 
     if ( $self->_is_args_array( $values[0] ) ) {
         foreach my $target (@targets) {
-            my $name = $self->_padname( $target->targ );
-            if ( $target->name eq 'padsv' ) {
+            my $name = $self->_target_name($target);
+            if ( !_is_list_target($target) ) {
                 $self->_add_param( name => $name, index => $self->{shifted}++, source => 'list' );
             }
             else {
@@ -818,13 +819,13 @@ sub _on_aassign {
     }
     elsif ( $self->_is_args_shift( $values[0] ) ) {
         $self->{consumed}{ ${ _unwrap( $values[0] ) } } = 1;
-        $self->_add_param( name => $self->_padname( $targets[0]->targ ), index => $self->{shifted}++, source => 'shift' );
+        $self->_add_param( name => $self->_target_name( $targets[0] ), index => $self->{shifted}++, source => 'shift' );
     }
     elsif ( my $checked = $self->_checked_call( $values[0] ) ) {
         my @types = @{ $checked->{types} };
         foreach my $target (@targets) {
-            my $name = $self->_padname( $target->targ );
-            if ( $target->name ne 'padsv' ) {
+            my $name = $self->_target_name($target);
+            if ( _is_list_target($target) ) {
                 $self->_add_param( name => $name, index => $self->{shifted}, source => 'checked' );
                 last;
             }
@@ -838,6 +839,19 @@ sub _on_aassign {
         }
     }
     return;
+}
+
+# The name of the lexical that a target of a list assignment declares, or undef for an undef placeholder.
+sub _target_name {
+    my ( $self, $target ) = @_;
+    return undef if $target->name eq q{undef};
+    return $self->_padname( $target->targ );
+}
+
+# Whether a target of a list assignment is an array or a hash, which takes the rest of the list.
+sub _is_list_target {
+    my ($target) = @_;
+    return $target->name eq 'padav' || $target->name eq 'padhv';
 }
 
 # A call that checks the arguments of the sub, such as $check->(@_), validate(\@_, ...) or validate_pos(@_, ...):

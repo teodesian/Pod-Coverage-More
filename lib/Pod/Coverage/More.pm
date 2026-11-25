@@ -81,7 +81,8 @@ and the checks compare its own code with the section of the parent.
 
 =item B<arguments> - each argument that the POD names is a parameter of the sub: a variable assigned from C<@_>,
 a parameter of a signature, a key of a hash of named arguments, or a parameter that a class builder or a signature module declares.
-A parameter with no name, such as the placeholder C<$> in C<sub check ($self, $)>, takes whatever name the POD gives the argument at its position.
+A parameter with no name, such as the placeholder C<$> in C<sub check ($self, $)>
+or the C<undef> in C<my ($self, undef) = @_>, takes whatever name the POD gives the argument at its position.
 An argument beyond the parameters of the sub still fails.
 
 =item B<argument_types> - each argument has a documented type that agrees with the code.  A documented type must be the type that

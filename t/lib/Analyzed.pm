@@ -211,4 +211,14 @@ sub logs_only {
     return;
 }
 
+sub listed_undef_last {
+    my ( $self, $elem, undef ) = @_;
+    return $elem;
+}
+
+sub listed_undef_first {
+    my ( undef, $value ) = @_;
+    return $value;
+}
+
 1;
