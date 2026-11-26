@@ -30,3 +30,22 @@ checks:
       # the keywords they export (has, class, fun), a use the policy cannot see.
       ProhibitUnusedImports:
         allow: Moose Moo Mouse Class::Tiny Object::Pad Kavorka Method::Signatures
+  DistIni:
+    overrides:
+      # [Test::Pod::Coverage::More] is a plugin in lib/ of this checkout, which
+      # dzil loads while it reads dist.ini.
+      Bootstrap::lib: {}
+      # weaver.ini names [Blurbs], which is Pod::Weaver::Section::Blurbs in lib/
+      # of this checkout.  Config::MVP localizes @INC while it reads dist.ini,
+      # so a plugin such as [Bootstrap::lib] cannot add lib/ to it.
+      Run::BeforeBuild:
+        eval: require Cwd; unshift @INC, Cwd::abs_path(q{lib});
+      # The class builders and signature modules are optional:
+      # Pod::Coverage::More::Declared reads only those that are loaded, and the
+      # tests of each skip without it.  prereqs.yml declares what of them the
+      # distribution needs.
+      AutoPrereqs:
+        skip: ^(?:Moose|Moo|Mouse|Class::Tiny|Function::Parameters|Kavorka|Object::Pad|Method::Signatures)$
+    positions:
+      # Before the plugins that it lets dzil load from lib/.
+      Bootstrap::lib: ~
